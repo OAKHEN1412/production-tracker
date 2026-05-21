@@ -86,14 +86,33 @@ type QueueJob = {
   orderDate: Date;
 };
 
+// Find the latest ETA across all open assigned jobs (used as baseline for unassigned).
+async function findLatestAssignedEta(): Promise<Date | null> {
+  const latest = await prisma.job.findFirst({
+    where: {
+      cancelled: false,
+      status: { notIn: ["DONE", "CANCELLED"] },
+      assignedToId: { not: null },
+      etaAuto: { not: null },
+    },
+    orderBy: { etaAuto: "desc" },
+    select: { etaAuto: true },
+  });
+  return latest?.etaAuto ?? null;
+}
+
 // Recompute etaAuto for all "open" jobs of given worker IDs.
 // Returns map jobId → etaAuto.
 export async function recomputeWorkerQueues(workerIds: (string | null | undefined)[]) {
   const distinct = Array.from(new Set(workerIds.filter((x): x is string => !!x)));
   const updates: Record<string, Date> = {};
 
-  // Also recompute the "unassigned bucket": jobs with no worker (rate 6, each independent)
-  for (const wid of [...distinct, null as string | null]) {
+  // First, recompute ASSIGNED queues so latestAssignedEta is up-to-date.
+  // (We re-run unassigned after to base on that)
+  const orderedBuckets: (string | null)[] = [...distinct, null];
+
+  // Also recompute the "unassigned bucket": jobs with no worker
+  for (const wid of orderedBuckets) {
     const where: any = {
       assignedToId: wid,
       cancelled: false,
@@ -110,12 +129,35 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
     });
 
     if (wid === null) {
-      // Unassigned jobs: each independent, start = today, rate 6
-      const start = nextWorkday(new Date());
+      // Unassigned jobs: start from latest assigned ETA in system (worst-case baseline)
+      // Persist any pending updates first so latestEta reflects updated assigned ETAs.
+      if (Object.keys(updates).length) {
+        const jobMeta0 = await prisma.job.findMany({
+          where: { id: { in: Object.keys(updates) } },
+          select: { id: true, orderDate: true },
+        });
+        const om = new Map(jobMeta0.map((j) => [j.id, j.orderDate]));
+        await prisma.$transaction(
+          Object.entries(updates).map(([id, etaAuto]) => {
+            const order = om.get(id) ?? new Date();
+            const days = workingDaysBetween(order, etaAuto);
+            return prisma.job.update({
+              where: { id },
+              data: { etaAuto, deliveryTime: deliveryLabel(days) },
+            });
+          })
+        );
+      }
+      const latest = await findLatestAssignedEta();
+      const baseline = latest
+        ? addOneWorkday(latest)
+        : nextWorkday(new Date());
+      let cursor = baseline;
       for (const j of queue) {
         const days = Math.max(1, Math.ceil(j.qty / RATE_UNASSIGNED));
-        const eta = computeWorkingEnd(start, days);
-        updates[j.id] = eta;
+        const end = computeWorkingEnd(cursor, days);
+        updates[j.id] = end;
+        cursor = addOneWorkday(end);
       }
     } else {
       // Serial queue per worker
@@ -166,7 +208,8 @@ export async function previewJobEta(input: {
   const { assignedToId, qty, item, jobId } = input;
 
   if (!assignedToId) {
-    const start = nextWorkday(new Date());
+    const latest = await findLatestAssignedEta();
+    const start = latest ? addOneWorkday(latest) : nextWorkday(new Date());
     const days = Math.max(1, Math.ceil(qty / RATE_UNASSIGNED));
     return {
       eta: computeWorkingEnd(start, days),

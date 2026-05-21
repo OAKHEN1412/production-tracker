@@ -124,12 +124,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: { id: string } })
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const role = (session.user as any).role;
-  // SUPPORT cannot delete
-  if (role !== "PRODUCTION" && role !== "OWNER") {
+  const meId = (session.user as any).id;
+  if (role !== "PRODUCTION" && role !== "OWNER" && role !== "SUPPORT") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const existing = await prisma.job.findUnique({ where: { id: ctx.params.id } });
   if (!existing) return NextResponse.json({ ok: true });
+  // SUPPORT can only delete own jobs
+  if (role === "SUPPORT" && existing.createdById !== meId) {
+    return NextResponse.json({ error: "forbidden: not your job" }, { status: 403 });
+  }
   await prisma.job.delete({ where: { id: ctx.params.id } });
   await recomputeWorkerQueues([existing.assignedToId]);
   return NextResponse.json({ ok: true });

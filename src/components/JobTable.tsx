@@ -169,7 +169,8 @@ export default function JobTable({
   const isFullEditor = role === "OWNER" || role === "PRODUCTION";
   const canRowEdit = (j: Job) =>
     isFullEditor || (isSupport && j.createdById === meId);
-  const canRowDelete = isFullEditor;
+  const canRowDelete = (j: Job) =>
+    isFullEditor || (isSupport && j.createdById === meId);
   const canRowStatus = isFullEditor;
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>(initial);
@@ -461,7 +462,7 @@ export default function JobTable({
                         className="text-gray-600 text-xs px-2 py-1 hover:underline mr-1">
                         ยกเลิก
                       </button>
-                      {canRowDelete && (
+                      {canRowDelete(j) && (
                         <button onClick={() => del(j.id)} disabled={busyId === j.id}
                           className="text-red-600 text-xs px-2 py-1 hover:underline disabled:opacity-50">
                           🗑 ลบ
@@ -518,7 +519,7 @@ export default function JobTable({
                         ดู
                       </Link>
                     )}
-                    {canRowDelete && (
+                    {canRowDelete(j) && (
                       <button onClick={() => del(j.id)}
                         disabled={busyId === j.id}
                         className="text-red-600 text-xs px-2 py-1 hover:underline disabled:opacity-50">
@@ -550,7 +551,7 @@ export default function JobTable({
                 <div className="flex gap-2 pt-2 border-t flex-wrap">
                   <button onClick={cancelEdit}
                     className="text-xs px-3 py-1.5 rounded border">ยกเลิก</button>
-                  {canRowDelete && (
+                  {canRowDelete(j) && (
                     <button onClick={() => del(j.id)} disabled={busyId === j.id}
                       className="text-xs px-3 py-1.5 rounded border border-red-600 text-red-600 disabled:opacity-50">
                       🗑 ลบ
@@ -612,7 +613,7 @@ export default function JobTable({
                       ✎ แก้ไข
                     </button>
                   )}
-                  {canRowDelete && (
+                  {canRowDelete(j) && (
                     <button onClick={() => del(j.id)}
                       disabled={busyId === j.id}
                       className="text-xs px-3 py-1.5 rounded border border-red-600 text-red-600 disabled:opacity-50 ml-auto">
