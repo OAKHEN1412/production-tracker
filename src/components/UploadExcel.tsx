@@ -130,19 +130,6 @@ export default function UploadExcel() {
       if (row.docNo != null) row.docNo = String(row.docNo).trim();
       if (row.assignedToName != null) row.assignedToName = String(row.assignedToName).trim();
 
-      const FIELD_TH: Record<string, string> = {
-        docNo: "เลขที่เอกสาร",
-        orderDate: "วันที่สั่งผลิต",
-        deliveryTime: "Delivery time",
-        customer: "ลูกค้า",
-        item: "รายการ",
-        qty: "จำนวน",
-      };
-      const missing: string[] = [];
-      for (const k of Object.keys(FIELD_TH)) {
-        if (!row[k] && row[k] !== 0) missing.push(FIELD_TH[k]);
-      }
-      if (missing.length) row._err = "ขาด: " + missing.join(", ");
       return row as Row;
     });
 
@@ -151,16 +138,12 @@ export default function UploadExcel() {
   }
 
   async function commit() {
-    const valid = rows.filter((r) => !r._err);
-    if (valid.length === 0) {
-      alert("ไม่มีแถวที่ valid");
-      return;
-    }
+    if (rows.length === 0) return;
     setBusy(true);
     const res = await fetch("/api/jobs/bulk", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ rows: valid }),
+      body: JSON.stringify({ rows }),
     });
     setBusy(false);
     const j = await res.json();
@@ -232,12 +215,11 @@ export default function UploadExcel() {
                         <th>ผู้รับผิดชอบ</th>
                         <th>สถานะ</th>
                         <th>ETA</th>
-                        <th>ตรวจสอบ</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((r, i) => (
-                        <tr key={i} className={r._err ? "bg-red-50" : ""}>
+                        <tr key={i}>
                           <td>{i + 1}</td>
                           <td>{r.docNo}</td>
                           <td>{r.orderDate}</td>
@@ -248,9 +230,6 @@ export default function UploadExcel() {
                           <td>{r.assignedToName ?? "-"}</td>
                           <td>{r.status ?? "PENDING"}</td>
                           <td>{r.etaManual ?? "-"}</td>
-                          <td className={r._err ? "text-red-600" : "text-green-600"}>
-                            {r._err ?? "✓"}
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -262,7 +241,7 @@ export default function UploadExcel() {
                     className="px-3 py-1.5 text-sm border rounded">ล้าง</button>
                   <button onClick={commit} disabled={busy}
                     className="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50">
-                    {busy ? "กำลังบันทึก..." : `ยืนยันอัปโหลด (${rows.filter((r) => !r._err).length} แถว)`}
+                    {busy ? "กำลังบันทึก..." : `ยืนยันอัปโหลด (${rows.length} แถว)`}
                   </button>
                 </div>
               </>

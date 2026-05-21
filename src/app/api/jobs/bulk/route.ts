@@ -2,19 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-const rowSchema = z.object({
-  docNo: z.string().min(1),
-  orderDate: z.string(),
-  deliveryTime: z.string().min(1),
-  customer: z.string().min(1),
-  item: z.string().min(1),
-  qty: z.coerce.number().int().positive(),
-  status: z.string().optional(),
-  assignedToName: z.string().optional().nullable(),
-  etaManual: z.string().optional().nullable(),
-});
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -40,37 +27,40 @@ export async function POST(req: NextRequest) {
 
   const created: any[] = [];
   const errors: { row: number; error: any }[] = [];
+  const ts = Date.now();
+
+  function parseDate(v: any): Date {
+    if (!v) return new Date();
+    const d = new Date(String(v));
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  function parseDateOrNull(v: any): Date | null {
+    if (!v) return null;
+    const d = new Date(String(v));
+    return isNaN(d.getTime()) ? null : d;
+  }
 
   for (let i = 0; i < body.rows.length; i++) {
-    const raw = body.rows[i];
-    const p = rowSchema.safeParse(raw);
-    if (!p.success) {
-      errors.push({ row: i + 1, error: p.error.flatten() });
-      continue;
-    }
-    const d = p.data;
+    const raw = body.rows[i] ?? {};
     try {
-      const exists = await prisma.job.findUnique({ where: { docNo: d.docNo } });
-      if (exists) {
-        errors.push({ row: i + 1, error: `docNo ซ้ำ: ${d.docNo}` });
-        continue;
-      }
-      const assignedToId = d.assignedToName
-        ? userByName.get(d.assignedToName.trim().toLowerCase()) ?? null
+      const docNo = String(raw.docNo ?? "").trim() || `AUTO-${ts}-${i + 1}`;
+      const qty = Number(raw.qty);
+      const assignedToId = raw.assignedToName
+        ? userByName.get(String(raw.assignedToName).trim().toLowerCase()) ?? null
         : null;
 
       const job = await prisma.job.create({
         data: {
           seq: nextSeq++,
-          docNo: d.docNo,
-          orderDate: new Date(d.orderDate),
-          deliveryTime: d.deliveryTime,
-          customer: d.customer,
-          item: d.item,
-          qty: d.qty,
-          status: d.status ?? "PENDING",
+          docNo,
+          orderDate: parseDate(raw.orderDate),
+          deliveryTime: String(raw.deliveryTime ?? "").trim() || "-",
+          customer: String(raw.customer ?? "").trim() || "-",
+          item: String(raw.item ?? "").trim() || "-",
+          qty: Number.isFinite(qty) && qty > 0 ? Math.floor(qty) : 1,
+          status: raw.status || "PENDING",
           assignedToId,
-          etaManual: d.etaManual ? new Date(d.etaManual) : null,
+          etaManual: parseDateOrNull(raw.etaManual),
           createdById: (session.user as any).id,
         },
       });
