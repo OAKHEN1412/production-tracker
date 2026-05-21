@@ -19,6 +19,29 @@ function isWeekend(d: Date) {
   return day === 0 || day === 6;
 }
 
+export function workingDaysBetween(from: Date, to: Date): number {
+  const start = nextWorkday(from);
+  const end = nextWorkday(to);
+  if (end.getTime() < start.getTime()) return 1;
+  let count = 1;
+  const d = new Date(start);
+  while (d.getTime() < end.getTime()) {
+    d.setDate(d.getDate() + 1);
+    if (!isWeekend(d)) count++;
+  }
+  return count;
+}
+
+export function deliveryLabel(days: number): string {
+  if (days <= 1) return "1 วันทำการ";
+  if (days <= 2) return "2 วันทำการ";
+  if (days <= 5) return "3-5 วันทำการ";
+  if (days <= 7) return "5-7 วันทำการ";
+  if (days <= 14) return "7-14 วันทำการ";
+  if (days <= 30) return "14-30 วันทำการ";
+  return `${days} วันทำการ`;
+}
+
 function nextWorkday(d: Date): Date {
   const r = new Date(d);
   r.setHours(0, 0, 0, 0);
@@ -60,6 +83,7 @@ type QueueJob = {
   cancelled: boolean;
   createdAt: Date;
   etaAuto: Date | null;
+  orderDate: Date;
 };
 
 // Recompute etaAuto for all "open" jobs of given worker IDs.
@@ -81,6 +105,7 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
       select: {
         id: true, assignedToId: true, qty: true, item: true,
         status: true, cancelled: true, createdAt: true, etaAuto: true,
+        orderDate: true,
       },
     });
 
@@ -108,11 +133,23 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
     }
   }
 
+  // Compute deliveryTime label for each updated job (based on orderDate → etaAuto)
+  const jobMeta = await prisma.job.findMany({
+    where: { id: { in: Object.keys(updates) } },
+    select: { id: true, orderDate: true },
+  });
+  const orderMap = new Map(jobMeta.map((j) => [j.id, j.orderDate]));
+
   // Persist
   await prisma.$transaction(
-    Object.entries(updates).map(([id, etaAuto]) =>
-      prisma.job.update({ where: { id }, data: { etaAuto } })
-    )
+    Object.entries(updates).map(([id, etaAuto]) => {
+      const order = orderMap.get(id) ?? new Date();
+      const days = workingDaysBetween(order, etaAuto);
+      return prisma.job.update({
+        where: { id },
+        data: { etaAuto, deliveryTime: deliveryLabel(days) },
+      });
+    })
   );
 
   return updates;

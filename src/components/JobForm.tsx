@@ -110,15 +110,6 @@ export default function JobForm({ users, initial }: { users: User[]; initial?: I
           onChange={(e) => setF({ ...f, customer: e.target.value })} />
       </div>
       <div>
-        <div className={label}>Delivery time *</div>
-        <select className={input} required value={f.deliveryTime}
-          onChange={(e) => setF({ ...f, deliveryTime: e.target.value })}>
-          {DELIVERY_OPTIONS.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
-      </div>
-      <div>
         <div className={label}>รายการผลิต *</div>
         <input className={input} required value={f.item}
           onChange={(e) => setF({ ...f, item: e.target.value })} />

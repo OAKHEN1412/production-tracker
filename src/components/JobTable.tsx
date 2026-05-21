@@ -451,21 +451,22 @@ export default function JobTable({
                     </td>
                     <td><input type="date" className={input} value={editDraft!.etaManual}
                       onChange={(e) => setEditDraft({ ...editDraft!, etaManual: e.target.value })} /></td>
-                    <td>
-                      <select className={input} value={editDraft!.deliveryTime}
-                        onChange={(e) => setEditDraft({ ...editDraft!, deliveryTime: e.target.value })}>
-                        {DELIVERY_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </td>
+                    <td className="text-xs text-gray-400">auto</td>
                     <td className="text-right whitespace-nowrap">
                       <button onClick={saveEdit} disabled={busyId === j.id}
                         className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 rounded mr-1 disabled:opacity-50">
                         ✓ บันทึก
                       </button>
                       <button onClick={cancelEdit}
-                        className="text-gray-600 text-xs px-2 py-1 hover:underline">
+                        className="text-gray-600 text-xs px-2 py-1 hover:underline mr-1">
                         ยกเลิก
                       </button>
+                      {canRowDelete && (
+                        <button onClick={() => del(j.id)} disabled={busyId === j.id}
+                          className="text-red-600 text-xs px-2 py-1 hover:underline disabled:opacity-50">
+                          🗑 ลบ
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -546,9 +547,15 @@ export default function JobTable({
               <div key={j.id} className="bg-white rounded shadow p-3 border-2 border-yellow-400 space-y-2">
                 <div className="text-xs text-gray-500 font-mono">#{j.seq} กำลังแก้ไข</div>
                 <DraftFields draft={editDraft!} setDraft={(d) => setEditDraft(d)} users={users} compact />
-                <div className="flex gap-2 pt-2 border-t">
+                <div className="flex gap-2 pt-2 border-t flex-wrap">
                   <button onClick={cancelEdit}
                     className="text-xs px-3 py-1.5 rounded border">ยกเลิก</button>
+                  {canRowDelete && (
+                    <button onClick={() => del(j.id)} disabled={busyId === j.id}
+                      className="text-xs px-3 py-1.5 rounded border border-red-600 text-red-600 disabled:opacity-50">
+                      🗑 ลบ
+                    </button>
+                  )}
                   <button onClick={saveEdit} disabled={busyId === j.id}
                     className="text-xs px-3 py-1.5 rounded bg-green-600 text-white ml-auto disabled:opacity-50">
                     ✓ บันทึก
@@ -690,13 +697,6 @@ function DraftFields({
         <div className={lbl}>ผลิตให้กับ บ. *</div>
         <input className={inp} value={draft.customer}
           onChange={(e) => setDraft({ ...draft, customer: e.target.value })} />
-      </div>
-      <div>
-        <div className={lbl}>Delivery time *</div>
-        <select className={inp} value={draft.deliveryTime}
-          onChange={(e) => setDraft({ ...draft, deliveryTime: e.target.value })}>
-          {DELIVERY_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
       </div>
       <div>
         <div className={lbl}>รายการผลิต *</div>

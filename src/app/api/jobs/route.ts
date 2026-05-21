@@ -8,7 +8,7 @@ import { z } from "zod";
 const createSchema = z.object({
   docNo: z.string().min(1),
   orderDate: z.string(),
-  deliveryTime: z.string().min(1),
+  deliveryTime: z.string().optional(),
   customer: z.string().min(1),
   item: z.string().min(1),
   qty: z.coerce.number().int().positive(),
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       seq: nextSeq,
       docNo: data.docNo,
       orderDate: new Date(data.orderDate),
-      deliveryTime: data.deliveryTime,
+      deliveryTime: data.deliveryTime || "-",
       customer: data.customer,
       item: data.item,
       qty: data.qty,

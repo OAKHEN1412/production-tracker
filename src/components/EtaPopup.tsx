@@ -6,6 +6,7 @@ type Job = {
   customer: string;
   item: string;
   qty: number;
+  deliveryTime?: string;
   assignedTo: { id: string; name: string } | null;
   etaAuto: string | Date | null;
   etaManual: string | Date | null;
@@ -52,6 +53,11 @@ export default function EtaPopup({
           <div className="text-2xl font-bold text-blue-900">
             {fmtDateLong(eta)}
           </div>
+          {job.deliveryTime && (
+            <div className="text-sm text-blue-700 mt-2">
+              ⏱ ระยะส่งงาน: <b>{job.deliveryTime}</b>
+            </div>
+          )}
           {job.etaManual && (
             <div className="text-xs text-blue-600 mt-1">(กำหนดเอง)</div>
           )}
