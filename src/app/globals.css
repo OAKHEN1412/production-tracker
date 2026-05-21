@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Sarabun", sans-serif;
+}
+
+/* Better default touch targets on mobile */
+button, [role="button"], a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Compact data table style (desktop) */
+.data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 13px;
+}
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  background: #fde68a;
+  font-weight: 600;
+  padding: 8px;
+  border-bottom: 2px solid #f59e0b;
+  text-align: left;
+  white-space: nowrap;
+  z-index: 1;
+}
+.data-table tbody td {
+  padding: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.data-table tbody tr:hover {
+  background: #fef3c7;
+}
+.data-table tbody tr.cancelled td {
+  opacity: 0.55;
+  text-decoration: line-through;
+}

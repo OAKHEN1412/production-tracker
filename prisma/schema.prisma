@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  name      String
+  role      String   // "PRODUCTION" | "SALES"
+  createdAt DateTime @default(now())
+
+  jobsCreated  Job[] @relation("CreatedBy")
+  jobsAssigned Job[] @relation("AssignedTo")
+}
+
+model Job {
+  id            String   @id @default(cuid())
+  seq           Int      @unique
+  docNo         String   @unique
+  orderDate     DateTime
+  deliveryTime  String
+  customer      String
+  item          String
+  qty           Int
+  cancelled     Boolean  @default(false)
+  notes         String?
+
+  status        String   @default("PENDING")
+  // PENDING | IN_PROGRESS | PAUSED | QC | DONE | CANCELLED
+
+  rate          Float?
+  etaAuto       DateTime?
+  etaManual     DateTime?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+
+  assignedToId  String?
+  assignedTo    User?    @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  createdById   String
+  createdBy     User     @relation("CreatedBy", fields: [createdById], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  logs          JobLog[]
+}
+
+model JobLog {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status    String
+  message   String?
+  createdAt DateTime @default(now())
+}
