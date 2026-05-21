@@ -48,6 +48,50 @@ function toDateInput(d?: string | Date | null) {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
+type SortKey = "seq" | "orderDate" | "docNo" | "customer" | "item" | "qty" | "assignedTo" | "status" | "eta" | "deliveryTime";
+
+const SORT_LABEL: Record<SortKey, string> = {
+  seq: "ลำดับ",
+  orderDate: "วันสั่งผลิต",
+  docNo: "เลขที่เอกสาร",
+  customer: "ลูกค้า",
+  item: "รายการ",
+  qty: "จำนวน",
+  assignedTo: "ผู้รับผิดชอบ",
+  status: "สถานะ",
+  eta: "ETA",
+  deliveryTime: "Delivery",
+};
+
+const STATUS_ORDER: Record<Status, number> = {
+  PENDING: 0, IN_PROGRESS: 1, PAUSED: 2, QC: 3, DONE: 4, CANCELLED: 5,
+};
+
+function sortJobs(arr: Job[], key: SortKey, dir: "asc" | "desc"): Job[] {
+  const mul = dir === "asc" ? 1 : -1;
+  return [...arr].sort((a, b) => {
+    let av: any, bv: any;
+    switch (key) {
+      case "seq": av = a.seq; bv = b.seq; break;
+      case "qty": av = a.qty; bv = b.qty; break;
+      case "orderDate": av = new Date(a.orderDate).getTime(); bv = new Date(b.orderDate).getTime(); break;
+      case "eta":
+        av = a.etaManual ? new Date(a.etaManual).getTime() : a.etaAuto ? new Date(a.etaAuto).getTime() : Infinity;
+        bv = b.etaManual ? new Date(b.etaManual).getTime() : b.etaAuto ? new Date(b.etaAuto).getTime() : Infinity;
+        break;
+      case "status": av = STATUS_ORDER[a.status]; bv = STATUS_ORDER[b.status]; break;
+      case "assignedTo": av = a.assignedTo?.name ?? "~"; bv = b.assignedTo?.name ?? "~"; break;
+      case "docNo": av = a.docNo; bv = b.docNo; break;
+      case "customer": av = a.customer; bv = b.customer; break;
+      case "item": av = a.item; bv = b.item; break;
+      case "deliveryTime": av = a.deliveryTime; bv = b.deliveryTime; break;
+    }
+    if (av < bv) return -1 * mul;
+    if (av > bv) return 1 * mul;
+    return 0;
+  });
+}
+
 const NEXT_STATUS: Partial<Record<Status, { to: Status; label: string; cls: string }>> = {
   PENDING:     { to: "IN_PROGRESS", label: "▶ เริ่มผลิต",  cls: "bg-blue-600 hover:bg-blue-700" },
   IN_PROGRESS: { to: "QC",          label: "→ QC",         cls: "bg-purple-600 hover:bg-purple-700" },
@@ -120,6 +164,8 @@ export default function JobTable({
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Status | "ALL">("ALL");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("seq");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   // Inline add
   const [adding, setAdding] = useState(false);
@@ -130,7 +176,7 @@ export default function JobTable({
   const [editDraft, setEditDraft] = useState<Draft | null>(null);
 
   const filtered = useMemo(() => {
-    return jobs.filter((j) => {
+    const arr = jobs.filter((j) => {
       if (filter !== "ALL" && j.status !== filter) return false;
       if (!q) return true;
       const s = q.toLowerCase();
@@ -141,7 +187,17 @@ export default function JobTable({
         (j.assignedTo?.name.toLowerCase().includes(s) ?? false)
       );
     });
-  }, [jobs, q, filter]);
+    return sortJobs(arr, sortKey, sortDir);
+  }, [jobs, q, filter, sortKey, sortDir]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+  function arrow(key: SortKey) {
+    if (sortKey !== key) return <span className="text-gray-300">↕</span>;
+    return <span className="text-gray-700">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  }
 
   const counts = useMemo(() => {
     const map: Record<string, number> = { ALL: jobs.length };
@@ -269,7 +325,7 @@ export default function JobTable({
             </div>
           )}
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 items-center">
           <FilterChip active={filter === "ALL"} onClick={() => setFilter("ALL")}
             label={`ทั้งหมด (${counts.ALL})`} cls="bg-gray-700 text-white" />
           {STATUSES.map((s) => (
@@ -279,6 +335,20 @@ export default function JobTable({
               label={`${STATUS_LABEL[s]} (${counts[s] ?? 0})`}
               cls={STATUS_COLOR[s]} />
           ))}
+          <div className="ml-auto flex items-center gap-1 text-xs">
+            <span className="text-gray-500">เรียง:</span>
+            <select className="border rounded px-2 py-1 text-xs"
+              value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
+              {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+                <option key={k} value={k}>{SORT_LABEL[k]}</option>
+              ))}
+            </select>
+            <button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+              className="border rounded px-2 py-1 hover:bg-gray-50"
+              title={sortDir === "asc" ? "น้อย→มาก" : "มาก→น้อย"}>
+              {sortDir === "asc" ? "↑" : "↓"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -304,16 +374,16 @@ export default function JobTable({
         <table className="data-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>สั่งผลิต</th>
-              <th>เลขที่เอกสาร</th>
-              <th>ลูกค้า</th>
-              <th>รายการ</th>
-              <th className="text-center">จำนวน</th>
-              <th>ผู้รับผิดชอบ</th>
-              <th>สถานะ</th>
-              <th>ETA</th>
-              <th>Delivery</th>
+              <SortTh k="seq" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>#</SortTh>
+              <SortTh k="orderDate" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>สั่งผลิต</SortTh>
+              <SortTh k="docNo" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>เลขที่เอกสาร</SortTh>
+              <SortTh k="customer" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>ลูกค้า</SortTh>
+              <SortTh k="item" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>รายการ</SortTh>
+              <SortTh k="qty" sortKey={sortKey} arrow={arrow} onClick={toggleSort} center>จำนวน</SortTh>
+              <SortTh k="assignedTo" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>ผู้รับผิดชอบ</SortTh>
+              <SortTh k="status" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>สถานะ</SortTh>
+              <SortTh k="eta" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>ETA</SortTh>
+              <SortTh k="deliveryTime" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>Delivery</SortTh>
               <th className="text-right">การจัดการ</th>
             </tr>
           </thead>
@@ -520,6 +590,27 @@ export default function JobTable({
         })}
       </div>
     </div>
+  );
+}
+
+function SortTh({ k, sortKey, arrow, onClick, center, children }: {
+  k: SortKey;
+  sortKey: SortKey;
+  arrow: (k: SortKey) => any;
+  onClick: (k: SortKey) => void;
+  center?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <th
+      onClick={() => onClick(k)}
+      className={`cursor-pointer select-none hover:bg-yellow-200 ${center ? "text-center" : ""}`}
+      title="คลิกเพื่อเรียง"
+    >
+      <span className="inline-flex items-center gap-1">
+        {children} {arrow(k)}
+      </span>
+    </th>
   );
 }
 
