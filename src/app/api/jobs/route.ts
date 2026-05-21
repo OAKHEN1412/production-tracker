@@ -52,6 +52,15 @@ export async function POST(req: NextRequest) {
   // SUPPORT cannot set status (must default PENDING) or etaManual
   const isSupport = role === "SUPPORT";
 
+  // check duplicate docNo before insert
+  const dup = await prisma.job.findUnique({ where: { docNo: data.docNo } });
+  if (dup) {
+    return NextResponse.json(
+      { error: `เลขที่เอกสาร "${data.docNo}" ซ้ำ — มีอยู่แล้วในระบบ` },
+      { status: 409 }
+    );
+  }
+
   const last = await prisma.job.findFirst({ orderBy: { seq: "desc" }, select: { seq: true } });
   const nextSeq = (last?.seq ?? 0) + 1;
 

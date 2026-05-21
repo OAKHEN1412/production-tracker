@@ -71,6 +71,17 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
     };
   }
 
+  // check docNo conflict (skip if same as existing)
+  if (d.docNo && d.docNo !== existing.docNo) {
+    const dup = await prisma.job.findUnique({ where: { docNo: d.docNo } });
+    if (dup) {
+      return NextResponse.json(
+        { error: `เลขที่เอกสาร "${d.docNo}" ซ้ำ` },
+        { status: 409 }
+      );
+    }
+  }
+
   // status side-effects
   let startedAt = existing.startedAt;
   let finishedAt = existing.finishedAt;

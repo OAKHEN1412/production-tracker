@@ -257,7 +257,8 @@ export default function JobTable({
     setBusyId(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert("สร้างไม่ได้: " + JSON.stringify(j.error));
+      const msg = typeof j.error === "string" ? j.error : JSON.stringify(j.error);
+      alert("สร้างไม่ได้: " + msg);
       return;
     }
     const created = await res.json();
@@ -288,7 +289,8 @@ export default function JobTable({
     setBusyId(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert("บันทึกไม่ได้: " + JSON.stringify(j.error));
+      const msg = typeof j.error === "string" ? j.error : JSON.stringify(j.error);
+      alert("บันทึกไม่ได้: " + msg);
       return;
     }
     const updated = await res.json();
