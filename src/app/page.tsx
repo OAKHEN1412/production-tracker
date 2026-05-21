@@ -45,10 +45,10 @@ export default async function HomePage() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-3">
+        <StatsSidebar overall={overall} workers={workers} />
         <div className="flex-1 min-w-0">
           <JobTable jobs={JSON.parse(JSON.stringify(jobs))} users={users} canEdit={canEdit} />
         </div>
-        <StatsSidebar overall={overall} workers={workers} />
       </div>
     </div>
   );
