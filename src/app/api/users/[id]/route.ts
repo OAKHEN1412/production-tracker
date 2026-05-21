@@ -7,7 +7,7 @@ import { z } from "zod";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
-  role: z.enum(["OWNER", "PRODUCTION", "SALES"]).optional(),
+  role: z.enum(["OWNER", "PRODUCTION", "SUPPORT", "SALES"]).optional(),
   password: z.string().min(6).optional(),
 });
 

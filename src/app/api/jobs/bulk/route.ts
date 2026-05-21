@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { recomputeWorkerQueues } from "@/lib/scheduler";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const role = (session.user as any).role;
-  if (role !== "PRODUCTION" && role !== "OWNER") {
+  if (role !== "PRODUCTION" && role !== "OWNER" && role !== "SUPPORT") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -70,6 +71,10 @@ export async function POST(req: NextRequest) {
       errors.push({ row: i + 1, error: e?.message ?? "unknown" });
     }
   }
+
+  // Recompute ETAs for all affected workers
+  const affected = Array.from(new Set(created.map((j) => j.assignedToId).filter((v): v is string => !!v)));
+  await recomputeWorkerQueues([...affected, null]);
 
   return NextResponse.json({
     createdCount: created.length,

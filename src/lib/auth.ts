@@ -59,5 +59,15 @@ export function isSales(role?: string) {
 export function isOwner(role?: string) {
   return role === "OWNER";
 }
-export const ROLES = ["OWNER", "PRODUCTION", "SALES"] as const;
+export const ROLES = ["OWNER", "PRODUCTION", "SUPPORT", "SALES"] as const;
 export type Role = (typeof ROLES)[number];
+
+export function isSupport(role?: string) {
+  return role === "SUPPORT";
+}
+export function canCreateJob(role?: string) {
+  return role === "PRODUCTION" || role === "OWNER" || role === "SUPPORT";
+}
+export function canFullEdit(role?: string) {
+  return role === "PRODUCTION" || role === "OWNER";
+}

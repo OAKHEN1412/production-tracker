@@ -8,7 +8,7 @@ export default async function NewJobPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
   const role = (session.user as any).role;
-  if (role !== "PRODUCTION" && role !== "OWNER") redirect("/");
+  if (role !== "PRODUCTION" && role !== "OWNER" && role !== "SUPPORT") redirect("/");
 
   const users = await prisma.user.findMany({
     where: { role: "PRODUCTION" },

@@ -6,13 +6,14 @@ type U = {
   id: string;
   username: string;
   name: string;
-  role: "OWNER" | "PRODUCTION" | "SALES";
+  role: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
   createdAt: string | Date;
 };
 
 const ROLE_LABEL: Record<U["role"], string> = {
   OWNER: "Owner",
   PRODUCTION: "ฝ่ายผลิต",
+  SUPPORT: "ฝ่ายซัพพอต",
   SALES: "ฝ่ายขาย",
 };
 
@@ -108,6 +109,7 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
           onChange={(e) => setNewUser({ ...newUser, role: e.target.value as U["role"] })}>
           <option value="OWNER">Owner</option>
           <option value="PRODUCTION">ฝ่ายผลิต</option>
+          <option value="SUPPORT">ฝ่ายซัพพอต</option>
           <option value="SALES">ฝ่ายขาย</option>
         </select>
         {err && <div className="sm:col-span-2 text-red-600 text-sm">{err}</div>}

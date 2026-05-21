@@ -10,6 +10,7 @@ import {
   type Status,
 } from "@/lib/eta";
 import UploadExcel from "./UploadExcel";
+import EtaPopup from "./EtaPopup";
 
 type User = { id: string; name: string; username: string };
 
@@ -30,6 +31,7 @@ type Job = {
   etaManual: string | Date | null;
   assignedTo: User | null;
   assignedToId: string | null;
+  createdById: string;
 };
 
 function fmtDate(d?: string | Date | null) {
@@ -154,11 +156,21 @@ export default function JobTable({
   jobs: initial,
   users,
   canEdit,
+  role,
+  meId,
 }: {
   jobs: Job[];
   users: User[];
   canEdit: boolean;
+  role?: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
+  meId?: string;
 }) {
+  const isSupport = role === "SUPPORT";
+  const isFullEditor = role === "OWNER" || role === "PRODUCTION";
+  const canRowEdit = (j: Job) =>
+    isFullEditor || (isSupport && j.createdById === meId);
+  const canRowDelete = isFullEditor;
+  const canRowStatus = isFullEditor;
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>(initial);
   const [q, setQ] = useState("");
@@ -174,6 +186,9 @@ export default function JobTable({
   // Inline edit
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Draft | null>(null);
+
+  // ETA popup after save
+  const [popup, setPopup] = useState<{ job: any; mode: "created" | "updated" } | null>(null);
 
   const filtered = useMemo(() => {
     const arr = jobs.filter((j) => {
@@ -236,16 +251,26 @@ export default function JobTable({
       alert("สร้างไม่ได้: " + JSON.stringify(j.error));
       return;
     }
+    const created = await res.json();
     setAdding(false);
     setDraft(emptyDraft());
     router.refresh();
     const fresh = await fetch("/api/jobs").then((r) => r.json());
     setJobs(fresh);
+    setPopup({ job: created, mode: "created" });
   }
 
   async function saveEdit() {
     if (!editId || !editDraft) return;
     setBusyId(editId);
+    // Detect if ETA-relevant fields changed (assignee/qty/item/etaManual)
+    const orig = jobs.find((j) => j.id === editId);
+    const etaChanged = !!orig && (
+      orig.assignedToId !== (editDraft.assignedToId || null) ||
+      orig.qty !== Number(editDraft.qty) ||
+      orig.item !== editDraft.item ||
+      String(orig.etaManual ? new Date(orig.etaManual).toISOString().slice(0,10) : "") !== editDraft.etaManual
+    );
     const res = await fetch(`/api/jobs/${editId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -257,11 +282,13 @@ export default function JobTable({
       alert("บันทึกไม่ได้: " + JSON.stringify(j.error));
       return;
     }
+    const updated = await res.json();
     setEditId(null);
     setEditDraft(null);
     router.refresh();
     const fresh = await fetch("/api/jobs").then((r) => r.json());
     setJobs(fresh);
+    if (etaChanged) setPopup({ job: updated, mode: "updated" });
   }
 
   async function setStatus(id: string, status: Status) {
@@ -304,6 +331,8 @@ export default function JobTable({
 
   return (
     <div className="space-y-3">
+      {popup && <EtaPopup job={popup.job} mode={popup.mode} onClose={() => setPopup(null)} />}
+
       {/* Toolbar */}
       <div className="bg-white p-3 rounded shadow flex flex-col gap-2">
         <div className="flex flex-col sm:flex-row gap-2">
@@ -444,9 +473,9 @@ export default function JobTable({
               const nxt = NEXT_STATUS[j.status];
               return (
                 <tr key={j.id}
-                  className={`${j.cancelled ? "cancelled" : ""} ${canEdit ? "cursor-pointer" : ""}`}
-                  onDoubleClick={() => canEdit && beginEdit(j)}
-                  title={canEdit ? "ดับเบิลคลิกเพื่อแก้ไข" : undefined}>
+                  className={`${j.cancelled ? "cancelled" : ""} ${canRowEdit(j) ? "cursor-pointer" : ""}`}
+                  onDoubleClick={() => canRowEdit(j) && beginEdit(j)}
+                  title={canRowEdit(j) ? "ดับเบิลคลิกเพื่อแก้ไข" : undefined}>
                   <td className="text-center font-mono text-xs">{j.seq}</td>
                   <td className="whitespace-nowrap">{fmtDate(j.orderDate)}</td>
                   <td className="font-mono text-xs">{j.docNo}</td>
@@ -468,7 +497,7 @@ export default function JobTable({
                   </td>
                   <td className="text-xs">{j.deliveryTime}</td>
                   <td className="text-right whitespace-nowrap" onDoubleClick={(e) => e.stopPropagation()}>
-                    {canEdit && nxt && !j.cancelled && (
+                    {canRowStatus && nxt && !j.cancelled && (
                       <button
                         disabled={busyId === j.id}
                         onClick={() => setStatus(j.id, nxt.to)}
@@ -477,7 +506,7 @@ export default function JobTable({
                         {nxt.label}
                       </button>
                     )}
-                    {canEdit ? (
+                    {canRowEdit(j) ? (
                       <button onClick={() => beginEdit(j)}
                         className="text-blue-600 text-xs px-2 py-1 hover:underline">
                         ✎ แก้
@@ -488,7 +517,7 @@ export default function JobTable({
                         ดู
                       </Link>
                     )}
-                    {canEdit && (
+                    {canRowDelete && (
                       <button onClick={() => del(j.id)}
                         disabled={busyId === j.id}
                         className="text-red-600 text-xs px-2 py-1 hover:underline disabled:opacity-50">
@@ -531,8 +560,8 @@ export default function JobTable({
           const nxt = NEXT_STATUS[j.status];
           return (
             <div key={j.id}
-              onDoubleClick={() => canEdit && beginEdit(j)}
-              className={`bg-white rounded shadow p-3 ${j.cancelled ? "opacity-60" : ""} ${canEdit ? "cursor-pointer" : ""}`}>
+              onDoubleClick={() => canRowEdit(j) && beginEdit(j)}
+              className={`bg-white rounded shadow p-3 ${j.cancelled ? "opacity-60" : ""} ${canRowEdit(j) ? "cursor-pointer" : ""}`}>
               <div className="flex justify-between items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -559,9 +588,9 @@ export default function JobTable({
                 {j.notes && <div className="col-span-2 text-gray-600 italic mt-1">{j.notes}</div>}
               </div>
 
-              {canEdit ? (
+              {canRowEdit(j) || canRowStatus ? (
                 <div className="flex gap-2 mt-3 pt-2 border-t flex-wrap" onDoubleClick={(e) => e.stopPropagation()}>
-                  {nxt && !j.cancelled && (
+                  {canRowStatus && nxt && !j.cancelled && (
                     <button
                       disabled={busyId === j.id}
                       onClick={() => setStatus(j.id, nxt.to)}
@@ -570,15 +599,19 @@ export default function JobTable({
                       {nxt.label}
                     </button>
                   )}
-                  <button onClick={() => beginEdit(j)}
-                    className="text-xs px-3 py-1.5 rounded border border-blue-600 text-blue-600">
-                    ✎ แก้ไข
-                  </button>
-                  <button onClick={() => del(j.id)}
-                    disabled={busyId === j.id}
-                    className="text-xs px-3 py-1.5 rounded border border-red-600 text-red-600 disabled:opacity-50 ml-auto">
-                    ลบ
-                  </button>
+                  {canRowEdit(j) && (
+                    <button onClick={() => beginEdit(j)}
+                      className="text-xs px-3 py-1.5 rounded border border-blue-600 text-blue-600">
+                      ✎ แก้ไข
+                    </button>
+                  )}
+                  {canRowDelete && (
+                    <button onClick={() => del(j.id)}
+                      disabled={busyId === j.id}
+                      className="text-xs px-3 py-1.5 rounded border border-red-600 text-red-600 disabled:opacity-50 ml-auto">
+                      ลบ
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="mt-3 pt-2 border-t">

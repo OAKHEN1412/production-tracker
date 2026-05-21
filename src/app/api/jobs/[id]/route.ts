@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { computeAutoEta } from "@/lib/eta";
+import { recomputeWorkerQueues } from "@/lib/scheduler";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -14,7 +14,6 @@ const updateSchema = z.object({
   qty: z.coerce.number().int().positive().optional(),
   cancelled: z.boolean().optional(),
   notes: z.string().nullable().optional(),
-  rate: z.coerce.number().positive().nullable().optional(),
   etaManual: z.string().nullable().optional(),
   assignedToId: z.string().nullable().optional(),
   status: z.string().optional(),
@@ -40,7 +39,7 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const role = (session.user as any).role;
-  if (role !== "PRODUCTION" && role !== "OWNER") {
+  if (role !== "PRODUCTION" && role !== "OWNER" && role !== "SUPPORT") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -49,24 +48,33 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const d = parsed.data;
+  let d = parsed.data;
 
   const existing = await prisma.job.findUnique({ where: { id: ctx.params.id } });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // SUPPORT restrictions:
+  //  - can only edit jobs they created
+  //  - cannot change: status, cancelled, etaManual, startedAt, finishedAt
+  if (role === "SUPPORT") {
+    if (existing.createdById !== (session.user as any).id) {
+      return NextResponse.json({ error: "forbidden: not your job" }, { status: 403 });
+    }
+    d = {
+      ...d,
+      status: undefined,
+      cancelled: undefined,
+      etaManual: undefined,
+      startedAt: undefined,
+      finishedAt: undefined,
+    };
+  }
 
   // status side-effects
   let startedAt = existing.startedAt;
   let finishedAt = existing.finishedAt;
   if (d.status === "IN_PROGRESS" && !startedAt) startedAt = new Date();
   if (d.status === "DONE" && !finishedAt) finishedAt = new Date();
-
-  const qty = d.qty ?? existing.qty;
-  const rate = d.rate !== undefined ? d.rate : existing.rate;
-  const etaAuto = computeAutoEta({
-    qty,
-    rate: rate ?? null,
-    startedAt: startedAt ?? null,
-  });
 
   const updated = await prisma.job.update({
     where: { id: ctx.params.id },
@@ -79,18 +87,16 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       qty: d.qty ?? undefined,
       cancelled: d.cancelled ?? undefined,
       notes: d.notes ?? undefined,
-      rate: d.rate ?? undefined,
-      etaAuto,
+      assignedToId: d.assignedToId ?? undefined,
+      status: d.status ?? undefined,
+      startedAt,
+      finishedAt,
       etaManual:
         d.etaManual === undefined
           ? undefined
           : d.etaManual === null
             ? null
             : new Date(d.etaManual),
-      assignedToId: d.assignedToId ?? undefined,
-      status: d.status ?? undefined,
-      startedAt,
-      finishedAt,
     },
   });
 
@@ -104,16 +110,27 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
     });
   }
 
-  return NextResponse.json(updated);
+  // Recompute queue ETAs of OLD and NEW assignee (and unassigned bucket)
+  await recomputeWorkerQueues([existing.assignedToId, updated.assignedToId]);
+
+  const fresh = await prisma.job.findUnique({
+    where: { id: ctx.params.id },
+    include: { assignedTo: { select: { id: true, name: true, username: true } } },
+  });
+  return NextResponse.json(fresh);
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const role = (session.user as any).role;
+  // SUPPORT cannot delete
   if (role !== "PRODUCTION" && role !== "OWNER") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+  const existing = await prisma.job.findUnique({ where: { id: ctx.params.id } });
+  if (!existing) return NextResponse.json({ ok: true });
   await prisma.job.delete({ where: { id: ctx.params.id } });
+  await recomputeWorkerQueues([existing.assignedToId]);
   return NextResponse.json({ ok: true });
 }

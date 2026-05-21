@@ -9,7 +9,7 @@ const createSchema = z.object({
   username: z.string().min(3),
   password: z.string().min(6),
   name: z.string().min(1),
-  role: z.enum(["OWNER", "PRODUCTION", "SALES"]),
+  role: z.enum(["OWNER", "PRODUCTION", "SUPPORT", "SALES"]),
 });
 
 export async function GET(req: NextRequest) {

@@ -6,7 +6,7 @@ declare module "next-auth" {
       id: string;
       name?: string | null;
       username?: string;
-      role?: "OWNER" | "PRODUCTION" | "SALES";
+      role?: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
     };
   }
 }
@@ -15,6 +15,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     username?: string;
-    role?: "OWNER" | "PRODUCTION" | "SALES";
+    role?: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
   }
 }
