@@ -143,6 +143,7 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
                     disabled={u.id === meId}>
                     <option value="OWNER">Owner</option>
                     <option value="PRODUCTION">ฝ่ายผลิต</option>
+                    <option value="SUPPORT">ฝ่ายซัพพอต</option>
                     <option value="SALES">ฝ่ายขาย</option>
                   </select>
                 </td>
@@ -186,6 +187,7 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
                 disabled={u.id === meId}>
                 <option value="OWNER">Owner</option>
                 <option value="PRODUCTION">ฝ่ายผลิต</option>
+                <option value="SUPPORT">ฝ่ายซัพพอต</option>
                 <option value="SALES">ฝ่ายขาย</option>
               </select>
             </div>
