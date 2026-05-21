@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-gray-50 text-gray-900 min-h-screen">
         <Providers>
           <NavBar />
-          <main className="p-3 sm:p-4 max-w-7xl mx-auto">{children}</main>
+          <main className="p-3 sm:p-4">{children}</main>
         </Providers>
       </body>
     </html>
