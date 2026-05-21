@@ -10,3 +10,5 @@ node_modules/
 # Local SQLite for dev
 prisma/dev.db
 prisma/dev.db-journal
+
+.vercel

@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import JobTable from "@/components/JobTable";
+import StatsSidebar from "@/components/StatsSidebar";
+import { computeOverall, computeWorkers } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,9 @@ export default async function HomePage() {
   const role = (session.user as any).role as "OWNER" | "PRODUCTION" | "SALES";
   const canEdit = role === "PRODUCTION" || role === "OWNER";
 
+  const overall = computeOverall(jobs as any);
+  const workers = computeWorkers(jobs as any);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-3">
@@ -38,7 +43,13 @@ export default async function HomePage() {
           role: <b>{role}</b> {role === "SALES" && "(read-only)"}
         </div>
       </div>
-      <JobTable jobs={JSON.parse(JSON.stringify(jobs))} users={users} canEdit={canEdit} />
+
+      <div className="flex flex-col lg:flex-row gap-3">
+        <div className="flex-1 min-w-0">
+          <JobTable jobs={JSON.parse(JSON.stringify(jobs))} users={users} canEdit={canEdit} />
+        </div>
+        <StatsSidebar overall={overall} workers={workers} />
+      </div>
     </div>
   );
 }
