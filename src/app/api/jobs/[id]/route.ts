@@ -16,6 +16,7 @@ const updateSchema = z.object({
   notes: z.string().nullable().optional(),
   etaManual: z.string().nullable().optional(),
   assignedToId: z.string().nullable().optional(),
+  salesOwnerId: z.string().nullable().optional(),
   status: z.string().optional(),
   startedAt: z.string().nullable().optional(),
   finishedAt: z.string().nullable().optional(),
@@ -88,6 +89,7 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       cancelled: d.cancelled ?? undefined,
       notes: d.notes ?? undefined,
       assignedToId: d.assignedToId ?? undefined,
+      salesOwnerId: d.salesOwnerId ?? undefined,
       status: d.status ?? undefined,
       startedAt,
       finishedAt,
@@ -115,7 +117,10 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
 
   const fresh = await prisma.job.findUnique({
     where: { id: ctx.params.id },
-    include: { assignedTo: { select: { id: true, name: true, username: true } } },
+    include: {
+      assignedTo: { select: { id: true, name: true, username: true } },
+      salesOwner: { select: { id: true, name: true, username: true } },
+    },
   });
   return NextResponse.json(fresh);
 }

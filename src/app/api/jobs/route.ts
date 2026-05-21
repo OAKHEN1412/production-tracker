@@ -15,6 +15,7 @@ const createSchema = z.object({
   notes: z.string().optional().nullable(),
   etaManual: z.string().optional().nullable(),
   assignedToId: z.string().optional().nullable(),
+  salesOwnerId: z.string().optional().nullable(),
   status: z.string().optional(),
 });
 
@@ -26,6 +27,7 @@ export async function GET() {
     orderBy: { seq: "asc" },
     include: {
       assignedTo: { select: { id: true, name: true, username: true } },
+      salesOwner: { select: { id: true, name: true, username: true } },
       createdBy: { select: { id: true, name: true } },
     },
   });
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
       notes: data.notes ?? null,
       etaManual: isSupport ? null : data.etaManual ? new Date(data.etaManual) : null,
       assignedToId: data.assignedToId ?? null,
+      salesOwnerId: data.salesOwnerId ?? null,
       status: isSupport ? "PENDING" : data.status ?? "PENDING",
       createdById: (session.user as any).id,
     },
@@ -80,7 +83,10 @@ export async function POST(req: NextRequest) {
   // Re-fetch to return fresh etaAuto + assignedTo
   const fresh = await prisma.job.findUnique({
     where: { id: job.id },
-    include: { assignedTo: { select: { id: true, name: true, username: true } } },
+    include: {
+      assignedTo: { select: { id: true, name: true, username: true } },
+      salesOwner: { select: { id: true, name: true, username: true } },
+    },
   });
 
   return NextResponse.json(fresh, { status: 201 });

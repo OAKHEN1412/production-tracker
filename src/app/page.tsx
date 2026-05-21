@@ -12,15 +12,21 @@ export default async function HomePage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const [jobs, users] = await Promise.all([
+  const [jobs, users, salesUsers] = await Promise.all([
     prisma.job.findMany({
       orderBy: { seq: "asc" },
       include: {
         assignedTo: { select: { id: true, name: true, username: true } },
+        salesOwner: { select: { id: true, name: true, username: true } },
       },
     }),
     prisma.user.findMany({
       where: { role: "PRODUCTION" },
+      select: { id: true, name: true, username: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.user.findMany({
+      where: { role: "SALES" },
       select: { id: true, name: true, username: true },
       orderBy: { name: "asc" },
     }),
@@ -51,6 +57,7 @@ export default async function HomePage() {
           <JobTable
             jobs={JSON.parse(JSON.stringify(jobs))}
             users={users}
+            salesUsers={salesUsers}
             canEdit={canEdit}
             role={role}
             meId={meId}

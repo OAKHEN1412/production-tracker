@@ -8,6 +8,7 @@ type Job = {
   qty: number;
   deliveryTime?: string;
   assignedTo: { id: string; name: string } | null;
+  salesOwner?: { id: string; name: string } | null;
   etaAuto: string | Date | null;
   etaManual: string | Date | null;
 };
@@ -72,6 +73,7 @@ export default function EtaPopup({
           <Row label="รายการ" value={job.item} />
           <Row label="จำนวน" value={String(job.qty)} />
           <Row label="ผู้รับผิดชอบ" value={job.assignedTo?.name ?? "ยังไม่กำหนด"} />
+          <Row label="เซล" value={job.salesOwner?.name ?? "-"} />
         </div>
 
         <div className="flex justify-end gap-2">

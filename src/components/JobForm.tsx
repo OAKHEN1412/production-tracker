@@ -18,6 +18,7 @@ type Initial = {
   rate?: number | null;
   etaManual?: string | Date | null;
   assignedToId?: string | null;
+  salesOwnerId?: string | null;
   status?: Status;
 };
 
@@ -30,7 +31,7 @@ function toDateInput(d?: string | Date | null) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export default function JobForm({ users, initial }: { users: User[]; initial?: Initial }) {
+export default function JobForm({ users, salesUsers = [], initial }: { users: User[]; salesUsers?: User[]; initial?: Initial }) {
   const router = useRouter();
   const editing = !!initial?.id;
 
@@ -46,6 +47,7 @@ export default function JobForm({ users, initial }: { users: User[]; initial?: I
     rate: initial?.rate ?? "",
     etaManual: toDateInput(initial?.etaManual),
     assignedToId: initial?.assignedToId ?? "",
+    salesOwnerId: initial?.salesOwnerId ?? "",
     status: initial?.status ?? "PENDING",
   });
   const [busy, setBusy] = useState(false);
@@ -61,6 +63,7 @@ export default function JobForm({ users, initial }: { users: User[]; initial?: I
       rate: f.rate === "" ? null : Number(f.rate),
       etaManual: f.etaManual || null,
       assignedToId: f.assignedToId || null,
+      salesOwnerId: f.salesOwnerId || null,
     };
     const url = editing ? `/api/jobs/${initial!.id}` : "/api/jobs";
     const method = editing ? "PATCH" : "POST";
@@ -126,6 +129,16 @@ export default function JobForm({ users, initial }: { users: User[]; initial?: I
           onChange={(e) => setF({ ...f, assignedToId: e.target.value })}>
           <option value="">- ยังไม่กำหนด -</option>
           {users.map((u) => (
+            <option key={u.id} value={u.id}>{u.name} ({u.username})</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div className={label}>งานของเซล</div>
+        <select className={input} value={f.salesOwnerId}
+          onChange={(e) => setF({ ...f, salesOwnerId: e.target.value })}>
+          <option value="">- ไม่ระบุ -</option>
+          {salesUsers.map((u) => (
             <option key={u.id} value={u.id}>{u.name} ({u.username})</option>
           ))}
         </select>

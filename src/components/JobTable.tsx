@@ -31,6 +31,8 @@ type Job = {
   etaManual: string | Date | null;
   assignedTo: User | null;
   assignedToId: string | null;
+  salesOwner: User | null;
+  salesOwnerId: string | null;
   createdById: string;
 };
 
@@ -111,6 +113,7 @@ type Draft = {
   notes: string;
   status: Status;
   assignedToId: string;
+  salesOwnerId: string;
   etaManual: string;
   rate: string;
   cancelled: boolean;
@@ -127,6 +130,7 @@ function emptyDraft(): Draft {
     notes: "",
     status: "PENDING",
     assignedToId: "",
+    salesOwnerId: "",
     etaManual: "",
     rate: "",
     cancelled: false,
@@ -144,6 +148,7 @@ function jobToDraft(j: Job): Draft {
     notes: j.notes ?? "",
     status: j.status,
     assignedToId: j.assignedToId ?? "",
+    salesOwnerId: j.salesOwnerId ?? "",
     etaManual: toDateInput(j.etaManual),
     rate: j.rate == null ? "" : String(j.rate),
     cancelled: j.cancelled,
@@ -155,12 +160,14 @@ const input = "border rounded px-2 py-1 text-xs w-full";
 export default function JobTable({
   jobs: initial,
   users,
+  salesUsers = [],
   canEdit,
   role,
   meId,
 }: {
   jobs: Job[];
   users: User[];
+  salesUsers?: User[];
   canEdit: boolean;
   role?: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
   meId?: string;
@@ -233,6 +240,7 @@ export default function JobTable({
       notes: d.notes || null,
       status: d.status,
       assignedToId: d.assignedToId || null,
+      salesOwnerId: d.salesOwnerId || null,
       etaManual: d.etaManual || null,
       rate: d.rate === "" ? null : Number(d.rate),
       cancelled: d.cancelled,
@@ -386,7 +394,7 @@ export default function JobTable({
       {adding && canEdit && (
         <div className="bg-white p-4 rounded shadow border-2 border-green-400">
           <div className="font-semibold mb-3 text-sm">+ งานใหม่</div>
-          <DraftFields draft={draft} setDraft={setDraft} users={users} />
+          <DraftFields draft={draft} setDraft={setDraft} users={users} salesUsers={salesUsers} />
           <div className="flex gap-2 mt-3 justify-end">
             <button onClick={() => { setAdding(false); setDraft(emptyDraft()); }}
               className="px-4 py-1.5 text-sm border rounded">ยกเลิก</button>
@@ -411,6 +419,7 @@ export default function JobTable({
               <SortTh k="item" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>รายการ</SortTh>
               <SortTh k="qty" sortKey={sortKey} arrow={arrow} onClick={toggleSort} center>จำนวน</SortTh>
               <SortTh k="assignedTo" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>ผู้รับผิดชอบ</SortTh>
+              <th>เซล</th>
               <SortTh k="status" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>สถานะ</SortTh>
               <SortTh k="eta" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>ETA</SortTh>
               <SortTh k="deliveryTime" sortKey={sortKey} arrow={arrow} onClick={toggleSort}>Delivery</SortTh>
@@ -419,7 +428,7 @@ export default function JobTable({
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11} className="text-center text-gray-500 py-8">ไม่มีงานในเงื่อนไขนี้</td></tr>
+              <tr><td colSpan={12} className="text-center text-gray-500 py-8">ไม่มีงานในเงื่อนไขนี้</td></tr>
             )}
             {filtered.map((j) => {
               const isEdit = editId === j.id && editDraft;
@@ -442,6 +451,13 @@ export default function JobTable({
                         onChange={(e) => setEditDraft({ ...editDraft!, assignedToId: e.target.value })}>
                         <option value="">- ไม่กำหนด -</option>
                         {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <select className={input} value={editDraft!.salesOwnerId}
+                        onChange={(e) => setEditDraft({ ...editDraft!, salesOwnerId: e.target.value })}>
+                        <option value="">- ไม่ระบุ -</option>
+                        {salesUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                       </select>
                     </td>
                     <td>
@@ -486,6 +502,9 @@ export default function JobTable({
                   <td className="text-center font-semibold">{j.qty}</td>
                   <td className="text-xs">
                     {j.assignedTo?.name ?? <span className="text-gray-400">-</span>}
+                  </td>
+                  <td className="text-xs">
+                    {j.salesOwner?.name ?? <span className="text-gray-400">-</span>}
                   </td>
                   <td>
                     <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${STATUS_COLOR[j.status]}`}>
@@ -547,7 +566,7 @@ export default function JobTable({
             return (
               <div key={j.id} className="bg-white rounded shadow p-3 border-2 border-yellow-400 space-y-2">
                 <div className="text-xs text-gray-500 font-mono">#{j.seq} กำลังแก้ไข</div>
-                <DraftFields draft={editDraft!} setDraft={(d) => setEditDraft(d)} users={users} compact />
+                <DraftFields draft={editDraft!} setDraft={(d) => setEditDraft(d)} users={users} salesUsers={salesUsers} compact />
                 <div className="flex gap-2 pt-2 border-t flex-wrap">
                   <button onClick={cancelEdit}
                     className="text-xs px-3 py-1.5 rounded border">ยกเลิก</button>
@@ -589,6 +608,7 @@ export default function JobTable({
                 <div><span className="text-gray-500">จำนวน:</span> <b>{j.qty}</b></div>
                 <div><span className="text-gray-500">สั่ง:</span> {fmtDate(j.orderDate)}</div>
                 <div className="col-span-2"><span className="text-gray-500">ผู้รับผิดชอบ:</span> {j.assignedTo?.name ?? "-"}</div>
+                <div className="col-span-2"><span className="text-gray-500">เซล:</span> {j.salesOwner?.name ?? "-"}</div>
                 <div className="col-span-2"><span className="text-gray-500">ETA:</span>{" "}
                   {j.etaManual ? fmtDate(j.etaManual) : j.etaAuto ? fmtDateTime(j.etaAuto) : "-"}
                 </div>
@@ -672,11 +692,13 @@ function DraftFields({
   draft,
   setDraft,
   users,
+  salesUsers = [],
   compact,
 }: {
   draft: Draft;
   setDraft: (d: Draft) => void;
   users: User[];
+  salesUsers?: User[];
   compact?: boolean;
 }) {
   const lbl = "text-xs text-gray-600";
@@ -715,6 +737,14 @@ function DraftFields({
           onChange={(e) => setDraft({ ...draft, assignedToId: e.target.value })}>
           <option value="">- ไม่กำหนด -</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+      </div>
+      <div>
+        <div className={lbl}>งานของเซล</div>
+        <select className={inp} value={draft.salesOwnerId}
+          onChange={(e) => setDraft({ ...draft, salesOwnerId: e.target.value })}>
+          <option value="">- ไม่ระบุ -</option>
+          {salesUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
       </div>
       <div>
