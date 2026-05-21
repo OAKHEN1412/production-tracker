@@ -32,6 +32,10 @@ const HEADER_MAP: Record<string, string> = {
   "eta manual": "etaManual",
   "etamanual": "etaManual",
   "กำหนดเสร็จ": "etaManual",
+  "เช็ค": "checkDone",
+  "เสร็จ": "checkDone",
+  "done": "checkDone",
+  "check": "checkDone",
 };
 
 // Status label → code
@@ -75,8 +79,16 @@ type Row = {
   assignedToName?: string;
   status?: string;
   etaManual?: string;
+  checkDone?: boolean;
   _err?: string;
 };
+
+function parseBool(v: any): boolean {
+  if (v === true) return true;
+  if (v === false || v == null || v === "") return false;
+  const s = String(v).trim().toLowerCase();
+  return ["true", "1", "yes", "y", "✓", "✔", "ใช่", "เสร็จ", "ok"].includes(s);
+}
 
 export default function UploadExcel() {
   const router = useRouter();
@@ -91,16 +103,16 @@ export default function UploadExcel() {
       [
         "เลขที่เอกสาร",
         "วันที่สั่งผลิต",
+        "เช็ค",
         "Delivery time",
         "ลูกค้า",
         "รายการ",
         "จำนวน",
         "ผู้รับผิดชอบ",
-        "สถานะ",
         "ETA Manual",
       ],
-      ["JU6901005", "2026-05-21", "3-5 วันทำการ", "ABC จำกัด", "X-100", 10, "ช่างตี๋", "รอผลิต", ""],
-      ["JU6901006", "2026-05-22", "ด่วน", "XYZ จำกัด", "Y-200", 5, "ช่างศัก", "กำลังผลิต", "2026-05-28"],
+      ["JU6901005", "2026-05-21", false, "3-5 วันทำการ", "ABC จำกัด", "X-100", 10, "ช่างตี๋", ""],
+      ["JU6901006", "2026-05-22", true,  "ด่วน", "XYZ จำกัด", "Y-200", 5, "ช่างศัก", "2026-05-28"],
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Jobs");
@@ -129,6 +141,10 @@ export default function UploadExcel() {
       if (row.qty != null && row.qty !== "") row.qty = Number(row.qty);
       if (row.docNo != null) row.docNo = String(row.docNo).trim();
       if (row.assignedToName != null) row.assignedToName = String(row.assignedToName).trim();
+      if ("checkDone" in row) {
+        row.checkDone = parseBool(row.checkDone);
+        row.status = row.checkDone ? "DONE" : "PENDING";
+      }
 
       return row as Row;
     });
@@ -195,8 +211,8 @@ export default function UploadExcel() {
             </div>
 
             <div className="text-xs text-gray-600 mb-2">
-              คอลัมน์ที่ต้องมี: <b>เลขที่เอกสาร, วันที่สั่งผลิต, Delivery time, ลูกค้า, รายการ, จำนวน</b><br />
-              เพิ่มเติม: ผู้รับผิดชอบ (ชื่อตรงกับ user), สถานะ (รอผลิต/กำลังผลิต/...), ETA Manual
+              คอลัมน์: เลขที่เอกสาร, วันที่สั่งผลิต, <b>เช็ค (TRUE=เสร็จสิ้น, FALSE=รอผลิต)</b>, Delivery time, ลูกค้า, รายการ, จำนวน, ผู้รับผิดชอบ, ETA Manual<br />
+              ทุกคอลัมน์ optional — ที่ขาดจะเติม default ให้
             </div>
 
             {rows.length > 0 && (
@@ -208,6 +224,7 @@ export default function UploadExcel() {
                         <th>#</th>
                         <th>เลขที่เอกสาร</th>
                         <th>วันสั่ง</th>
+                        <th>เช็ค</th>
                         <th>Delivery</th>
                         <th>ลูกค้า</th>
                         <th>รายการ</th>
@@ -223,6 +240,7 @@ export default function UploadExcel() {
                           <td>{i + 1}</td>
                           <td>{r.docNo}</td>
                           <td>{r.orderDate}</td>
+                          <td className="text-center">{r.checkDone ? "✓" : ""}</td>
                           <td>{r.deliveryTime}</td>
                           <td>{r.customer}</td>
                           <td>{r.item}</td>
