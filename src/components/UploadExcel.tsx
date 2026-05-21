@@ -130,9 +130,17 @@ export default function UploadExcel() {
       if (row.docNo != null) row.docNo = String(row.docNo).trim();
       if (row.assignedToName != null) row.assignedToName = String(row.assignedToName).trim();
 
+      const FIELD_TH: Record<string, string> = {
+        docNo: "เลขที่เอกสาร",
+        orderDate: "วันที่สั่งผลิต",
+        deliveryTime: "Delivery time",
+        customer: "ลูกค้า",
+        item: "รายการ",
+        qty: "จำนวน",
+      };
       const missing: string[] = [];
-      for (const k of ["docNo", "orderDate", "deliveryTime", "customer", "item", "qty"]) {
-        if (!row[k] && row[k] !== 0) missing.push(k);
+      for (const k of Object.keys(FIELD_TH)) {
+        if (!row[k] && row[k] !== 0) missing.push(FIELD_TH[k]);
       }
       if (missing.length) row._err = "ขาด: " + missing.join(", ");
       return row as Row;
