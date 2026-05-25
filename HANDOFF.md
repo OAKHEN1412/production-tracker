@@ -138,9 +138,11 @@ src/
 
 ## Deploy
 
-Manual (หลัก): `vercel --prod --yes` จาก root ของ repo. Login เป็น team `kik0800269066-5722`.
+Auto: push to `main` → Vercel rebuild เอง (Git integration ต่อแล้ว ผ่าน `vercel git connect`).
 
-> ⚠️ Git auto-deploy เคยไม่ได้ต่อ — push to `main` ไม่ rebuild เอง. ถ้าต่อ Git integration แล้ว (Vercel → Project → Settings → Git) push to `main` จะ auto-deploy. เช็คสถานะ: `vercel ls` ดูว่า deploy ล่าสุดตรงกับ push ล่าสุดไหม.
+Manual (fallback): `vercel --prod --yes` จาก root ของ repo. Login team `kik0800269066-5722`.
+
+เช็คสถานะ deploy: `vercel ls` (ดูว่า deploy ล่าสุดตรงกับ push ล่าสุด) / `vercel inspect <url> --wait`.
 
 **Env vars (Vercel):**
 - `DATABASE_URL` — Neon pooled connection string (sslmode=require)
