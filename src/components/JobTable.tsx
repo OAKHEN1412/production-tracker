@@ -178,7 +178,7 @@ export default function JobTable({
   salesUsers?: User[];
   products?: ProductOpt[];
   canEdit: boolean;
-  role?: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
+  role?: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES" | "SHIPPING";
   meId?: string;
 }) {
   const isSupport = role === "SUPPORT";

@@ -6,7 +6,7 @@ type U = {
   id: string;
   username: string;
   name: string;
-  role: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
+  role: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES" | "SHIPPING";
   createdAt: string | Date;
 };
 
@@ -15,6 +15,7 @@ const ROLE_LABEL: Record<U["role"], string> = {
   PRODUCTION: "ฝ่ายผลิต",
   SUPPORT: "ฝ่ายซัพพอต",
   SALES: "ฝ่ายขาย",
+  SHIPPING: "ฝ่ายจัดส่ง",
 };
 
 export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: string }) {
@@ -111,6 +112,7 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
           <option value="PRODUCTION">ฝ่ายผลิต</option>
           <option value="SUPPORT">ฝ่ายซัพพอต</option>
           <option value="SALES">ฝ่ายขาย</option>
+          <option value="SHIPPING">ฝ่ายจัดส่ง</option>
         </select>
         {err && <div className="sm:col-span-2 text-red-600 text-sm">{err}</div>}
         <div className="sm:col-span-2 flex justify-end">
@@ -145,6 +147,7 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
                     <option value="PRODUCTION">ฝ่ายผลิต</option>
                     <option value="SUPPORT">ฝ่ายซัพพอต</option>
                     <option value="SALES">ฝ่ายขาย</option>
+                    <option value="SHIPPING">ฝ่ายจัดส่ง</option>
                   </select>
                 </td>
                 <td className="text-xs">
@@ -189,6 +192,7 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
                 <option value="PRODUCTION">ฝ่ายผลิต</option>
                 <option value="SUPPORT">ฝ่ายซัพพอต</option>
                 <option value="SALES">ฝ่ายขาย</option>
+                <option value="SHIPPING">ฝ่ายจัดส่ง</option>
               </select>
             </div>
             <div className="flex gap-2 mt-3 pt-2 border-t">

@@ -18,6 +18,7 @@ model User {
   jobsCreated  Job[] @relation("CreatedBy")
   jobsAssigned Job[] @relation("AssignedTo")
   jobsAsSales  Job[] @relation("SalesOwner")
+  deliveries   Delivery[] @relation("DeliveryBy")
 }
 
 model Job {
@@ -74,6 +75,25 @@ model Material {
 
   usages        JobMaterial[]
   productUsages ProductMaterial[]
+  deliveries    Delivery[]
+}
+
+// A parcel received into the warehouse by the shipping team, with a photo
+// confirmation. Optionally adds to a material's stock (รับเข้าคลัง).
+model Delivery {
+  id          String   @id @default(cuid())
+  title       String
+  note        String?
+  photo       String   // base64 data URL — confirmation image
+  qtyReceived Float    @default(0)
+
+  materialId  String?
+  material    Material? @relation(fields: [materialId], references: [id])
+
+  createdById String
+  createdBy   User     @relation("DeliveryBy", fields: [createdById], references: [id])
+
+  createdAt   DateTime @default(now())
 }
 
 // A cylinder model (รุ่นกระบอก) with a reusable recipe of materials per 1 unit.

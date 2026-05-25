@@ -39,7 +39,7 @@ export default async function HomePage() {
     }),
   ]);
 
-  const role = (session.user as any).role as "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
+  const role = (session.user as any).role as "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES" | "SHIPPING";
   const meId = (session.user as any).id as string;
   const canEdit = role === "PRODUCTION" || role === "OWNER" || role === "SUPPORT";
 
