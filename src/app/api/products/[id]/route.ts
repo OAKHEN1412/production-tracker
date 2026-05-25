@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
   await prisma.product.update({
     where: { id: ctx.params.id },
     data: {
-      name: name ?? undefined,
+      name: name || undefined,
       code,
       notes: d.notes === undefined ? undefined : d.notes?.trim() || null,
     },

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recomputeWorkerQueues } from "@/lib/scheduler";
-import { setJobMaterials, deductMaterialsOnce } from "@/lib/stock";
+import { setJobMaterials, deductMaterialsOnce, restoreDeductedMaterials } from "@/lib/stock";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -164,6 +164,8 @@ export async function DELETE(_req: NextRequest, ctx: { params: { id: string } })
   if (role === "SUPPORT" && existing.createdById !== meId) {
     return NextResponse.json({ error: "forbidden: not your job" }, { status: 403 });
   }
+  // Put any deducted stock back before removing the job (and its BOM rows).
+  await restoreDeductedMaterials(ctx.params.id);
   await prisma.job.delete({ where: { id: ctx.params.id } });
   await recomputeWorkerQueues([existing.assignedToId]);
   return NextResponse.json({ ok: true });

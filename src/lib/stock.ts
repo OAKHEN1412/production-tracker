@@ -28,6 +28,25 @@ export async function deductMaterialsOnce(jobId: string) {
   ]);
 }
 
+// Put deducted stock back (e.g. when a job is deleted). No-op if never deducted.
+export async function restoreDeductedMaterials(jobId: string) {
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    include: { materials: true },
+  });
+  if (!job || !job.materialsDeducted || job.materials.length === 0) return;
+
+  await prisma.$transaction([
+    ...job.materials.map((jm) =>
+      prisma.material.update({
+        where: { id: jm.materialId },
+        data: { qty: { increment: jm.qtyPerUnit * job.qty } },
+      })
+    ),
+    prisma.job.update({ where: { id: jobId }, data: { materialsDeducted: false } }),
+  ]);
+}
+
 // Replace a job's bill-of-materials. Pass [] to clear.
 export async function setJobMaterials(
   jobId: string,

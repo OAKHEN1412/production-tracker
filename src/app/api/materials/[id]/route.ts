@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
     where: { id: ctx.params.id },
     data: {
       code,
-      name: d.name?.trim() ?? undefined,
+      name: d.name?.trim() || undefined,
       category: d.category?.trim() ?? undefined,
       unit: d.unit?.trim() ?? undefined,
       // adjustDelta wins over absolute qty when present
