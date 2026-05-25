@@ -50,10 +50,41 @@ model Job {
   createdById   String
   createdBy     User     @relation("CreatedBy", fields: [createdById], references: [id])
 
+  materialsDeducted Boolean @default(false)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   logs          JobLog[]
+  materials     JobMaterial[]
+}
+
+model Material {
+  id        String   @id @default(cuid())
+  code      String?  @unique   // optional SKU / part number
+  name      String
+  category  String   @default("อื่นๆ")
+  unit      String   @default("ชิ้น")  // ชิ้น | เส้น | เมตร | กก. | ชุด
+  qty       Float    @default(0)        // current stock on hand
+  minQty    Float    @default(0)        // low-stock threshold
+  location  String?                     // shelf / bin
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usages    JobMaterial[]
+}
+
+// Bill of materials: how much of a Material a Job consumes per produced unit.
+model JobMaterial {
+  id         String   @id @default(cuid())
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id])
+  qtyPerUnit Float    @default(0)
+
+  @@unique([jobId, materialId])
 }
 
 model JobLog {

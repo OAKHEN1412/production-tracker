@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { STATUSES, STATUS_LABEL, DELIVERY_OPTIONS, type Status } from "@/lib/eta";
 
 type User = { id: string; name: string; username: string };
+type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
+type MatRow = { materialId: string; qtyPerUnit: number };
 
 type Initial = {
   id?: string;
@@ -20,6 +22,7 @@ type Initial = {
   assignedToId?: string | null;
   salesOwnerId?: string | null;
   status?: Status;
+  materials?: { materialId: string; qtyPerUnit: number }[];
 };
 
 function toDateInput(d?: string | Date | null) {
@@ -31,9 +34,20 @@ function toDateInput(d?: string | Date | null) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export default function JobForm({ users, salesUsers = [], initial }: { users: User[]; salesUsers?: User[]; initial?: Initial }) {
+export default function JobForm({
+  users,
+  salesUsers = [],
+  allMaterials = [],
+  initial,
+}: {
+  users: User[];
+  salesUsers?: User[];
+  allMaterials?: MaterialOpt[];
+  initial?: Initial;
+}) {
   const router = useRouter();
   const editing = !!initial?.id;
+  const [mats, setMats] = useState<MatRow[]>(initial?.materials ?? []);
 
   const [f, setF] = useState({
     docNo: initial?.docNo ?? "",
@@ -64,6 +78,9 @@ export default function JobForm({ users, salesUsers = [], initial }: { users: Us
       etaManual: f.etaManual || null,
       assignedToId: f.assignedToId || null,
       salesOwnerId: f.salesOwnerId || null,
+      materials: mats
+        .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
+        .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit) })),
     };
     const url = editing ? `/api/jobs/${initial!.id}` : "/api/jobs";
     const method = editing ? "PATCH" : "POST";
@@ -90,6 +107,19 @@ export default function JobForm({ users, salesUsers = [], initial }: { users: Us
       router.push("/");
       router.refresh();
     }
+  }
+
+  function unitOf(id: string) {
+    return allMaterials.find((m) => m.id === id)?.unit ?? "";
+  }
+  function addMat() {
+    setMats([...mats, { materialId: "", qtyPerUnit: 1 }]);
+  }
+  function updateMat(i: number, patch: Partial<MatRow>) {
+    setMats(mats.map((m, idx) => (idx === i ? { ...m, ...patch } : m)));
+  }
+  function removeMat(i: number) {
+    setMats(mats.filter((_, idx) => idx !== i));
   }
 
   const input = "border rounded px-3 py-2 w-full text-sm";
@@ -157,6 +187,47 @@ export default function JobForm({ users, salesUsers = [], initial }: { users: Us
         <div className={label}>ETA Manual (กำหนดเอง)</div>
         <input type="date" className={input} value={f.etaManual}
           onChange={(e) => setF({ ...f, etaManual: e.target.value })} />
+      </div>
+
+      {/* Bill of materials */}
+      <div className="sm:col-span-2 border-t pt-3">
+        <div className="flex items-center justify-between mb-1">
+          <div className={label}>วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกเมื่อสถานะเป็น "เสร็จสิ้น"</div>
+          {allMaterials.length > 0 && (
+            <button type="button" onClick={addMat}
+              className="text-xs text-blue-600 hover:underline whitespace-nowrap">+ เพิ่มวัสดุ</button>
+          )}
+        </div>
+        {allMaterials.length === 0 ? (
+          <div className="text-xs text-gray-400">ยังไม่มีวัสดุในสต๊อก — เพิ่มที่หน้า “สต๊อกวัสดุ” ก่อน</div>
+        ) : mats.length === 0 ? (
+          <div className="text-xs text-gray-400">ยังไม่ได้ระบุวัสดุ</div>
+        ) : (
+          <div className="space-y-2">
+            {mats.map((m, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <select className={input + " flex-1"} value={m.materialId}
+                  onChange={(e) => updateMat(i, { materialId: e.target.value })}>
+                  <option value="">- เลือกวัสดุ -</option>
+                  {allMaterials.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.code ? `[${opt.code}] ` : ""}{opt.name}
+                    </option>
+                  ))}
+                </select>
+                <input type="number" min={0} step="any" className={input + " w-24 text-center"}
+                  value={m.qtyPerUnit}
+                  onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
+                <span className="text-xs text-gray-500 w-10">{unitOf(m.materialId)}</span>
+                <button type="button" onClick={() => removeMat(i)}
+                  className="text-red-600 text-sm px-2">✕</button>
+              </div>
+            ))}
+            <div className="text-xs text-gray-400">
+              ตัดจริง = จำนวนต่อชิ้น × จำนวนผลิต ({Number(f.qty) || 0} ชิ้น)
+            </div>
+          </div>
+        )}
       </div>
 
       {err && <div className="sm:col-span-2 text-red-600 text-sm">{err}</div>}

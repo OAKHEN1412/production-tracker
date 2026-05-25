@@ -15,11 +15,12 @@ export default async function JobDetailPage({ params }: { params: { id: string }
     include: {
       assignedTo: { select: { id: true, name: true, username: true } },
       logs: { orderBy: { createdAt: "desc" }, take: 20 },
+      materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } },
     },
   });
   if (!job) notFound();
 
-  const [users, salesUsers] = await Promise.all([
+  const [users, salesUsers, allMaterials] = await Promise.all([
     prisma.user.findMany({
       where: { role: "PRODUCTION" },
       select: { id: true, name: true, username: true },
@@ -29,6 +30,10 @@ export default async function JobDetailPage({ params }: { params: { id: string }
       where: { role: "SALES" },
       select: { id: true, name: true, username: true },
       orderBy: { name: "asc" },
+    }),
+    prisma.material.findMany({
+      select: { id: true, name: true, unit: true, code: true },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
     }),
   ]);
 
@@ -42,7 +47,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
       </h1>
 
       {(role === "PRODUCTION" || role === "OWNER") ? (
-        <JobForm users={users} salesUsers={salesUsers} initial={JSON.parse(JSON.stringify(job))} />
+        <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} initial={JSON.parse(JSON.stringify(job))} />
       ) : (
         <div className="bg-white p-4 rounded shadow text-sm space-y-1">
           <div><b>ลูกค้า:</b> {job.customer}</div>
@@ -53,6 +58,18 @@ export default async function JobDetailPage({ params }: { params: { id: string }
           <div><b>ETA auto:</b> {job.etaAuto ? new Date(job.etaAuto).toLocaleString("th-TH") : "-"}</div>
           <div><b>ETA manual:</b> {job.etaManual ? new Date(job.etaManual).toLocaleDateString("th-TH") : "-"}</div>
           <div><b>หมายเหตุ:</b> {job.notes ?? "-"}</div>
+          {job.materials.length > 0 && (
+            <div>
+              <b>วัสดุที่ใช้ (ต่อชิ้น):</b>
+              <ul className="list-disc ml-5 mt-1">
+                {job.materials.map((jm) => (
+                  <li key={jm.id}>
+                    {jm.material.code ? `[${jm.material.code}] ` : ""}{jm.material.name} — {jm.qtyPerUnit} {jm.material.unit}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

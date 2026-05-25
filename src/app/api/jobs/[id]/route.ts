@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recomputeWorkerQueues } from "@/lib/scheduler";
+import { setJobMaterials, deductMaterialsOnce } from "@/lib/stock";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -20,6 +21,9 @@ const updateSchema = z.object({
   status: z.string().optional(),
   startedAt: z.string().nullable().optional(),
   finishedAt: z.string().nullable().optional(),
+  materials: z
+    .array(z.object({ materialId: z.string(), qtyPerUnit: z.coerce.number().nonnegative() }))
+    .optional(),
 });
 
 export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
@@ -30,6 +34,7 @@ export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
     include: {
       assignedTo: { select: { id: true, name: true, username: true } },
       logs: { orderBy: { createdAt: "desc" } },
+      materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } },
     },
   });
   if (!job) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -122,6 +127,12 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       },
     });
   }
+
+  // Update bill of materials if provided.
+  if (d.materials !== undefined) await setJobMaterials(updated.id, d.materials);
+
+  // Deduct material stock once when the job reaches DONE (guarded against double-deduct).
+  if (updated.status === "DONE") await deductMaterialsOnce(updated.id);
 
   // Recompute queue ETAs of OLD and NEW assignee (and unassigned bucket)
   await recomputeWorkerQueues([existing.assignedToId, updated.assignedToId]);

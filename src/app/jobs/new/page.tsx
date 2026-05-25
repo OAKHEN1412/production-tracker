@@ -10,7 +10,7 @@ export default async function NewJobPage() {
   const role = (session.user as any).role;
   if (role !== "PRODUCTION" && role !== "OWNER" && role !== "SUPPORT") redirect("/");
 
-  const [users, salesUsers] = await Promise.all([
+  const [users, salesUsers, allMaterials] = await Promise.all([
     prisma.user.findMany({
       where: { role: "PRODUCTION" },
       select: { id: true, name: true, username: true },
@@ -21,12 +21,16 @@ export default async function NewJobPage() {
       select: { id: true, name: true, username: true },
       orderBy: { name: "asc" },
     }),
+    prisma.material.findMany({
+      select: { id: true, name: true, unit: true, code: true },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+    }),
   ]);
 
   return (
     <div className="max-w-3xl mx-auto">
       <h1 className="text-xl font-bold mb-4">สร้างงานผลิตใหม่</h1>
-      <JobForm users={users} salesUsers={salesUsers} />
+      <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} />
     </div>
   );
 }

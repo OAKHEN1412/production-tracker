@@ -3,7 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recomputeWorkerQueues } from "@/lib/scheduler";
+import { setJobMaterials, deductMaterialsOnce } from "@/lib/stock";
 import { z } from "zod";
+
+const materialsSchema = z
+  .array(z.object({ materialId: z.string(), qtyPerUnit: z.coerce.number().nonnegative() }))
+  .optional();
 
 const createSchema = z.object({
   docNo: z.string().min(1),
@@ -17,6 +22,7 @@ const createSchema = z.object({
   assignedToId: z.string().optional().nullable(),
   salesOwnerId: z.string().optional().nullable(),
   status: z.string().optional(),
+  materials: materialsSchema,
 });
 
 export async function GET() {
@@ -85,6 +91,10 @@ export async function POST(req: NextRequest) {
   await prisma.jobLog.create({
     data: { jobId: job.id, status: job.status, message: "created" },
   });
+
+  // Bill of materials + deduct stock if created already-done.
+  if (data.materials) await setJobMaterials(job.id, data.materials);
+  if (job.status === "DONE") await deductMaterialsOnce(job.id);
 
   // Recompute queue ETAs for affected workers (incl. unassigned bucket)
   await recomputeWorkerQueues([data.assignedToId ?? null]);
