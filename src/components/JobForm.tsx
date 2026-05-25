@@ -218,7 +218,7 @@ export default function JobForm({
           </div>
         )}
         <div className="flex items-center justify-between mb-1">
-          <div className={label}>วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกเมื่อสถานะเป็น "เสร็จสิ้น"</div>
+          <div className={label}>วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกทันทีเมื่อบันทึกงาน</div>
           {allMaterials.length > 0 && (
             <button type="button" onClick={addMat}
               className="text-xs text-blue-600 hover:underline whitespace-nowrap">+ เพิ่มวัสดุ</button>
@@ -231,8 +231,8 @@ export default function JobForm({
         ) : (
           <div className="space-y-2">
             {mats.map((m, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <select className={input + " flex-1 min-w-0"} value={m.materialId}
+              <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
+                <select className={input + " flex-1 basis-full sm:basis-0 min-w-[11rem]"} value={m.materialId}
                   onChange={(e) => updateMat(i, { materialId: e.target.value })}>
                   <option value="">- เลือกวัสดุ -</option>
                   {allMaterials.map((opt) => (
@@ -241,12 +241,12 @@ export default function JobForm({
                     </option>
                   ))}
                 </select>
-                <input type="number" min={0} step="any" className={input + " w-16 text-center shrink-0"}
+                <input type="number" min={0} step="any" className={input + " w-20 text-center shrink-0"}
                   value={m.qtyPerUnit}
                   onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
-                <span className="text-xs text-gray-500 w-10">{unitOf(m.materialId)}</span>
+                <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
                 <button type="button" onClick={() => removeMat(i)}
-                  className="text-red-600 text-sm px-2">✕</button>
+                  className="text-red-600 text-sm px-2 shrink-0">✕</button>
               </div>
             ))}
             <div className="text-xs text-gray-400">

@@ -13,6 +13,8 @@ import UploadExcel from "./UploadExcel";
 import EtaPopup from "./EtaPopup";
 
 type User = { id: string; name: string; username: string };
+type MatRow = { materialId: string; qtyPerUnit: number };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
 
 type Job = {
   id: string;
@@ -83,7 +85,14 @@ function sortJobs(arr: Job[], key: SortKey, dir: "asc" | "desc"): Job[] {
       case "docNo": av = a.docNo; bv = b.docNo; break;
       case "customer": av = a.customer; bv = b.customer; break;
       case "item": av = a.item; bv = b.item; break;
-      case "deliveryTime": av = a.deliveryTime; bv = b.deliveryTime; break;
+      case "deliveryTime":
+        // Delivery is a label derived from the ETA, so order by the real date, not the text.
+        av = a.etaManual ? new Date(a.etaManual).getTime() : a.etaAuto ? new Date(a.etaAuto).getTime() : Infinity;
+        bv = b.etaManual ? new Date(b.etaManual).getTime() : b.etaAuto ? new Date(b.etaAuto).getTime() : Infinity;
+        break;
+    }
+    if (typeof av === "string" && typeof bv === "string") {
+      return av.localeCompare(bv, "th") * mul;
     }
     if (av < bv) return -1 * mul;
     if (av > bv) return 1 * mul;
@@ -112,6 +121,7 @@ type Draft = {
   etaManual: string;
   rate: string;
   cancelled: boolean;
+  materials: MatRow[];
 };
 
 function emptyDraft(): Draft {
@@ -129,6 +139,7 @@ function emptyDraft(): Draft {
     etaManual: "",
     rate: "",
     cancelled: false,
+    materials: [],
   };
 }
 
@@ -147,6 +158,7 @@ function jobToDraft(j: Job): Draft {
     etaManual: toDateInput(j.etaManual),
     rate: j.rate == null ? "" : String(j.rate),
     cancelled: j.cancelled,
+    materials: [], // BOM is not edited inline; left untouched on save
   };
 }
 
@@ -156,6 +168,7 @@ export default function JobTable({
   jobs: initial,
   users,
   salesUsers = [],
+  products = [],
   canEdit,
   role,
   meId,
@@ -163,6 +176,7 @@ export default function JobTable({
   jobs: Job[];
   users: User[];
   salesUsers?: User[];
+  products?: ProductOpt[];
   canEdit: boolean;
   role?: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES";
   meId?: string;
@@ -249,7 +263,7 @@ export default function JobTable({
     const res = await fetch("/api/jobs", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payloadFromDraft(draft)),
+      body: JSON.stringify({ ...payloadFromDraft(draft), materials: draft.materials }),
     });
     setBusyId(null);
     if (!res.ok) {
@@ -397,7 +411,7 @@ export default function JobTable({
       {adding && canEdit && (
         <div className="bg-white p-4 rounded shadow border-2 border-green-400">
           <div className="font-semibold mb-3 text-sm">+ งานใหม่</div>
-          <DraftFields draft={draft} setDraft={setDraft} users={users} salesUsers={salesUsers} />
+          <DraftFields draft={draft} setDraft={setDraft} users={users} salesUsers={salesUsers} products={products} />
           <div className="flex gap-2 mt-3 justify-end">
             <button onClick={() => { setAdding(false); setDraft(emptyDraft()); }}
               className="px-4 py-1.5 text-sm border rounded">ยกเลิก</button>
@@ -696,12 +710,14 @@ function DraftFields({
   setDraft,
   users,
   salesUsers = [],
+  products = [],
   compact,
 }: {
   draft: Draft;
   setDraft: (d: Draft) => void;
   users: User[];
   salesUsers?: User[];
+  products?: ProductOpt[];
   compact?: boolean;
 }) {
   const lbl = "text-xs text-gray-600";
@@ -709,6 +725,27 @@ function DraftFields({
   const gridCls = compact ? "grid grid-cols-1 gap-2" : "grid grid-cols-1 sm:grid-cols-2 gap-3";
   return (
     <div className={gridCls}>
+      {products.length > 0 && (
+        <div className="sm:col-span-2 bg-blue-50 border border-blue-200 rounded p-2">
+          <div className={lbl}>เลือกรุ่นกระบอก (เติมรายการ + วัสดุ → ตัดสต๊อกเมื่อบันทึก)</div>
+          <select className={inp}
+            onChange={(e) => {
+              const p = products.find((x) => x.id === e.target.value);
+              if (p) setDraft({ ...draft, item: p.code || p.name, materials: p.materials });
+              else setDraft({ ...draft, materials: [] });
+            }}>
+            <option value="">- ไม่เลือก (กรอกเอง) -</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>{p.code ? `[${p.code}] ` : ""}{p.name}</option>
+            ))}
+          </select>
+          {draft.materials.length > 0 && (
+            <div className="text-xs text-emerald-700 mt-1">
+              วัสดุ {draft.materials.length} รายการ จะถูกตัดสต๊อก × จำนวนผลิต
+            </div>
+          )}
+        </div>
+      )}
       <div>
         <div className={lbl}>เลขที่เอกสาร *</div>
         <input className={inp} value={draft.docNo}

@@ -131,8 +131,11 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
   // Update bill of materials if provided.
   if (d.materials !== undefined) await setJobMaterials(updated.id, d.materials);
 
-  // Deduct material stock once when the job reaches DONE (guarded against double-deduct).
-  if (updated.status === "DONE") await deductMaterialsOnce(updated.id);
+  // Deduct stock once when materials get set, or when the job reaches DONE
+  // (guarded against double-deduct by Job.materialsDeducted).
+  if (d.materials !== undefined || updated.status === "DONE") {
+    await deductMaterialsOnce(updated.id);
+  }
 
   // Recompute queue ETAs of OLD and NEW assignee (and unassigned bucket)
   await recomputeWorkerQueues([existing.assignedToId, updated.assignedToId]);

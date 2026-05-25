@@ -1,20 +1,18 @@
 import { prisma } from "./prisma";
 
 // Deduct material stock for a job's bill-of-materials exactly once.
-// Called when a job reaches DONE. Guarded by Job.materialsDeducted so repeated
-// calls (e.g. editing a DONE job) never double-deduct.
+// Called whenever a job has materials (on create / when materials are set / on DONE).
+// Guarded by Job.materialsDeducted so repeated calls never double-deduct.
 // Usage deducted per material = qtyPerUnit * job.qty.
+// No materials yet → do nothing (and do NOT set the flag, so a later edit that
+// adds materials can still deduct).
 export async function deductMaterialsOnce(jobId: string) {
   const job = await prisma.job.findUnique({
     where: { id: jobId },
     include: { materials: true },
   });
   if (!job || job.materialsDeducted) return;
-
-  if (job.materials.length === 0) {
-    await prisma.job.update({ where: { id: jobId }, data: { materialsDeducted: true } });
-    return;
-  }
+  if (job.materials.length === 0) return;
 
   await prisma.$transaction([
     ...job.materials.map((jm) =>

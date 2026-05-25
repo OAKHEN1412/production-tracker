@@ -12,7 +12,7 @@ export default async function HomePage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const [jobs, users, salesUsers] = await Promise.all([
+  const [jobs, users, salesUsers, products] = await Promise.all([
     prisma.job.findMany({
       orderBy: { seq: "asc" },
       include: {
@@ -29,6 +29,13 @@ export default async function HomePage() {
       where: { role: "SALES" },
       select: { id: true, name: true, username: true },
       orderBy: { name: "asc" },
+    }),
+    prisma.product.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true, name: true, code: true,
+        materials: { select: { materialId: true, qtyPerUnit: true } },
+      },
     }),
   ]);
 
@@ -58,6 +65,7 @@ export default async function HomePage() {
             jobs={JSON.parse(JSON.stringify(jobs))}
             users={users}
             salesUsers={salesUsers}
+            products={products}
             canEdit={canEdit}
             role={role}
             meId={meId}

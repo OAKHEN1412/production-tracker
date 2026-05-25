@@ -92,9 +92,11 @@ export async function POST(req: NextRequest) {
     data: { jobId: job.id, status: job.status, message: "created" },
   });
 
-  // Bill of materials + deduct stock if created already-done.
-  if (data.materials) await setJobMaterials(job.id, data.materials);
-  if (job.status === "DONE") await deductMaterialsOnce(job.id);
+  // Bill of materials + deduct stock as soon as the job has materials.
+  if (data.materials) {
+    await setJobMaterials(job.id, data.materials);
+    await deductMaterialsOnce(job.id);
+  }
 
   // Recompute queue ETAs for affected workers (incl. unassigned bucket)
   await recomputeWorkerQueues([data.assignedToId ?? null]);

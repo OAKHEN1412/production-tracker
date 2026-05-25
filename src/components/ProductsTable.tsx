@@ -273,8 +273,8 @@ function Fields({
         ) : (
           <div className="space-y-2">
             {draft.mats.map((m, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <select className={inp + " flex-1 min-w-0"} value={m.materialId}
+              <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
+                <select className={inp + " flex-1 basis-full sm:basis-0 min-w-[11rem]"} value={m.materialId}
                   onChange={(e) => updateMat(i, { materialId: e.target.value })}>
                   <option value="">- เลือกวัสดุ -</option>
                   {allMaterials.map((opt) => (
@@ -283,7 +283,7 @@ function Fields({
                     </option>
                   ))}
                 </select>
-                <input type="number" min={0} step="any" className={inp + " w-16 text-center shrink-0"}
+                <input type="number" min={0} step="any" className={inp + " w-20 text-center shrink-0"}
                   value={m.qtyPerUnit}
                   onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
                 <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
