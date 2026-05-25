@@ -206,7 +206,7 @@ export default function JobForm({
           <div className="space-y-2">
             {mats.map((m, i) => (
               <div key={i} className="flex gap-2 items-center">
-                <select className={input + " flex-1"} value={m.materialId}
+                <select className={input + " flex-1 min-w-0"} value={m.materialId}
                   onChange={(e) => updateMat(i, { materialId: e.target.value })}>
                   <option value="">- เลือกวัสดุ -</option>
                   {allMaterials.map((opt) => (
@@ -215,7 +215,7 @@ export default function JobForm({
                     </option>
                   ))}
                 </select>
-                <input type="number" min={0} step="any" className={input + " w-24 text-center"}
+                <input type="number" min={0} step="any" className={input + " w-16 text-center shrink-0"}
                   value={m.qtyPerUnit}
                   onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
                 <span className="text-xs text-gray-500 w-10">{unitOf(m.materialId)}</span>
