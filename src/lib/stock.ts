@@ -51,3 +51,23 @@ export async function setJobMaterials(
       : []),
   ]);
 }
+
+// Replace a product's (cylinder model) recipe. Pass [] to clear.
+export async function setProductMaterials(
+  productId: string,
+  materials: { materialId: string; qtyPerUnit: number }[]
+) {
+  const clean = materials.filter((m) => m.materialId && m.qtyPerUnit > 0);
+  const byId = new Map(clean.map((m) => [m.materialId, m.qtyPerUnit]));
+
+  await prisma.$transaction([
+    prisma.productMaterial.deleteMany({ where: { productId } }),
+    ...(byId.size
+      ? [
+          prisma.productMaterial.createMany({
+            data: Array.from(byId, ([materialId, qtyPerUnit]) => ({ productId, materialId, qtyPerUnit })),
+          }),
+        ]
+      : []),
+  ]);
+}

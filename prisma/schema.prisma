@@ -72,7 +72,32 @@ model Material {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  usages    JobMaterial[]
+  usages        JobMaterial[]
+  productUsages ProductMaterial[]
+}
+
+// A cylinder model (รุ่นกระบอก) with a reusable recipe of materials per 1 unit.
+// Selecting one when creating a job prefills the job's bill of materials.
+model Product {
+  id        String   @id @default(cuid())
+  code      String?  @unique
+  name      String   @unique
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  materials ProductMaterial[]
+}
+
+model ProductMaterial {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id])
+  qtyPerUnit Float    @default(0)
+
+  @@unique([productId, materialId])
 }
 
 // Bill of materials: how much of a Material a Job consumes per produced unit.

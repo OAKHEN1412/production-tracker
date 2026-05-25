@@ -67,10 +67,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: { id: string } })
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const used = await prisma.jobMaterial.count({ where: { materialId: ctx.params.id } });
-  if (used > 0) {
+  const [usedInJobs, usedInProducts] = await Promise.all([
+    prisma.jobMaterial.count({ where: { materialId: ctx.params.id } }),
+    prisma.productMaterial.count({ where: { materialId: ctx.params.id } }),
+  ]);
+  if (usedInJobs > 0 || usedInProducts > 0) {
+    const parts = [];
+    if (usedInJobs > 0) parts.push(`${usedInJobs} งาน`);
+    if (usedInProducts > 0) parts.push(`${usedInProducts} รุ่นกระบอก`);
     return NextResponse.json(
-      { error: `วัสดุนี้ถูกใช้ใน ${used} งาน — ลบไม่ได้ (เอาออกจากงานก่อน)` },
+      { error: `วัสดุนี้ถูกใช้ใน ${parts.join(" และ ")} — ลบไม่ได้ (เอาออกก่อน)` },
       { status: 409 }
     );
   }

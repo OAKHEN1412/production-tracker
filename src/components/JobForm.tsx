@@ -6,6 +6,7 @@ import { STATUSES, STATUS_LABEL, DELIVERY_OPTIONS, type Status } from "@/lib/eta
 type User = { id: string; name: string; username: string };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
 type MatRow = { materialId: string; qtyPerUnit: number };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
 
 type Initial = {
   id?: string;
@@ -38,16 +39,19 @@ export default function JobForm({
   users,
   salesUsers = [],
   allMaterials = [],
+  products = [],
   initial,
 }: {
   users: User[];
   salesUsers?: User[];
   allMaterials?: MaterialOpt[];
+  products?: ProductOpt[];
   initial?: Initial;
 }) {
   const router = useRouter();
   const editing = !!initial?.id;
   const [mats, setMats] = useState<MatRow[]>(initial?.materials ?? []);
+  const [productId, setProductId] = useState("");
 
   const [f, setF] = useState({
     docNo: initial?.docNo ?? "",
@@ -109,6 +113,15 @@ export default function JobForm({
     }
   }
 
+  function applyProduct(id: string) {
+    setProductId(id);
+    if (!id) return;
+    const p = products.find((x) => x.id === id);
+    if (!p) return;
+    // Prefill the produced item with the model name and copy its recipe as the BOM.
+    setF((prev) => ({ ...prev, item: p.code || p.name }));
+    setMats(p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit })));
+  }
   function unitOf(id: string) {
     return allMaterials.find((m) => m.id === id)?.unit ?? "";
   }
@@ -191,6 +204,19 @@ export default function JobForm({
 
       {/* Bill of materials */}
       <div className="sm:col-span-2 border-t pt-3">
+        {products.length > 0 && (
+          <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-2">
+            <div className={label}>เลือกรุ่นกระบอก (เติมรายการ + วัสดุให้อัตโนมัติ)</div>
+            <select className={input} value={productId} onChange={(e) => applyProduct(e.target.value)}>
+              <option value="">- เลือกรุ่น (ไม่บังคับ) -</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code ? `[${p.code}] ` : ""}{p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-1">
           <div className={label}>วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกเมื่อสถานะเป็น "เสร็จสิ้น"</div>
           {allMaterials.length > 0 && (

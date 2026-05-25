@@ -20,6 +20,7 @@ export default function NavBar() {
           <Link href="/" className="text-sm text-gray-700 hover:text-black">Dashboard</Link>
           <Link href="/history" className="text-sm text-gray-700 hover:text-black">ประวัติการผลิต</Link>
           <Link href="/materials" className="text-sm text-gray-700 hover:text-black">สต๊อกวัสดุ</Link>
+          <Link href="/products" className="text-sm text-gray-700 hover:text-black">รุ่นกระบอก</Link>
           {(role === "PRODUCTION" || role === "OWNER" || role === "SUPPORT") && (
             <Link href="/jobs/new" className="text-sm text-blue-600 hover:underline">+ งานใหม่</Link>
           )}
@@ -67,6 +68,7 @@ export default function NavBar() {
           <Link href="/" onClick={() => setOpen(false)} className="py-1.5">Dashboard</Link>
           <Link href="/history" onClick={() => setOpen(false)} className="py-1.5">ประวัติการผลิต</Link>
           <Link href="/materials" onClick={() => setOpen(false)} className="py-1.5">สต๊อกวัสดุ</Link>
+          <Link href="/products" onClick={() => setOpen(false)} className="py-1.5">รุ่นกระบอก</Link>
           {(role === "PRODUCTION" || role === "OWNER" || role === "SUPPORT") && (
             <Link href="/jobs/new" onClick={() => setOpen(false)} className="py-1.5 text-blue-600">
               + งานใหม่

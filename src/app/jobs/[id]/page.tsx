@@ -20,7 +20,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
   });
   if (!job) notFound();
 
-  const [users, salesUsers, allMaterials] = await Promise.all([
+  const [users, salesUsers, allMaterials, products] = await Promise.all([
     prisma.user.findMany({
       where: { role: "PRODUCTION" },
       select: { id: true, name: true, username: true },
@@ -35,6 +35,13 @@ export default async function JobDetailPage({ params }: { params: { id: string }
       select: { id: true, name: true, unit: true, code: true },
       orderBy: [{ category: "asc" }, { name: "asc" }],
     }),
+    prisma.product.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true, name: true, code: true,
+        materials: { select: { materialId: true, qtyPerUnit: true } },
+      },
+    }),
   ]);
 
   return (
@@ -47,7 +54,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
       </h1>
 
       {(role === "PRODUCTION" || role === "OWNER") ? (
-        <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} initial={JSON.parse(JSON.stringify(job))} />
+        <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} products={products} initial={JSON.parse(JSON.stringify(job))} />
       ) : (
         <div className="bg-white p-4 rounded shadow text-sm space-y-1">
           <div><b>ลูกค้า:</b> {job.customer}</div>
