@@ -72,6 +72,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Seed an initial log per imported job so the production-history timeline is consistent.
+  if (created.length) {
+    await prisma.jobLog.createMany({
+      data: created.map((j) => ({ jobId: j.id, status: j.status, message: "imported" })),
+    });
+  }
+
   // Recompute ETAs for all affected workers
   const affected = Array.from(new Set(created.map((j) => j.assignedToId).filter((v): v is string => !!v)));
   await recomputeWorkerQueues([...affected, null]);

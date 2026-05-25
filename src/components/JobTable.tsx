@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   STATUS_LABEL,
@@ -40,11 +40,6 @@ function fmtDate(d?: string | Date | null) {
   if (!d) return "-";
   const dt = new Date(d);
   return dt.toLocaleDateString("th-TH", { year: "2-digit", month: "2-digit", day: "2-digit" });
-}
-function fmtDateTime(d?: string | Date | null) {
-  if (!d) return "-";
-  const dt = new Date(d);
-  return dt.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" });
 }
 function toDateInput(d?: string | Date | null) {
   if (!d) return "";
@@ -181,6 +176,8 @@ export default function JobTable({
   const canRowStatus = isFullEditor;
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>(initial);
+  // Keep table in sync with server data after router.refresh() (e.g. bulk Excel upload).
+  useEffect(() => { setJobs(initial); }, [initial]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Status | "ALL">("ALL");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -314,7 +311,9 @@ export default function JobTable({
       alert("อัปเดตไม่ได้");
       return;
     }
-    setJobs(jobs.map((j) => (j.id === id ? { ...j, status } : j)));
+    // Re-fetch: status change recomputes the whole queue's ETA + delivery.
+    const fresh = await fetch("/api/jobs").then((r) => r.json());
+    setJobs(fresh);
     router.refresh();
   }
 
@@ -327,7 +326,9 @@ export default function JobTable({
       alert("ลบไม่ได้");
       return;
     }
-    setJobs(jobs.filter((j) => j.id !== id));
+    // Re-fetch: delete recomputes the remaining queue's ETA + delivery.
+    const fresh = await fetch("/api/jobs").then((r) => r.json());
+    setJobs(fresh);
     router.refresh();
   }
 
@@ -515,7 +516,7 @@ export default function JobTable({
                   </td>
                   <td className="text-xs whitespace-nowrap">
                     {j.etaManual ? fmtDate(j.etaManual)
-                      : j.etaAuto ? <span className="text-gray-600">{fmtDateTime(j.etaAuto)}</span>
+                      : j.etaAuto ? <span className="text-gray-600">{fmtDate(j.etaAuto)}</span>
                       : "-"}
                   </td>
                   <td className="text-xs">{j.deliveryTime}</td>
@@ -612,7 +613,7 @@ export default function JobTable({
                 <div className="col-span-2"><span className="text-gray-500">ผู้รับผิดชอบ:</span> {j.assignedTo?.name ?? "-"}</div>
                 <div className="col-span-2"><span className="text-gray-500">เซล:</span> {j.salesOwner?.name ?? "-"}</div>
                 <div className="col-span-2"><span className="text-gray-500">ETA:</span>{" "}
-                  {j.etaManual ? fmtDate(j.etaManual) : j.etaAuto ? fmtDateTime(j.etaAuto) : "-"}
+                  {j.etaManual ? fmtDate(j.etaManual) : j.etaAuto ? fmtDate(j.etaAuto) : "-"}
                 </div>
                 <div className="col-span-2"><span className="text-gray-500">Delivery:</span> {j.deliveryTime}</div>
                 {j.notes && <div className="col-span-2 text-gray-600 italic mt-1">{j.notes}</div>}

@@ -134,13 +134,16 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
       if (Object.keys(updates).length) {
         const jobMeta0 = await prisma.job.findMany({
           where: { id: { in: Object.keys(updates) } },
-          select: { id: true, orderDate: true },
+          select: { id: true, orderDate: true, etaManual: true },
         });
-        const om = new Map(jobMeta0.map((j) => [j.id, j.orderDate]));
+        const om = new Map(jobMeta0.map((j) => [j.id, j]));
         await prisma.$transaction(
           Object.entries(updates).map(([id, etaAuto]) => {
-            const order = om.get(id) ?? new Date();
-            const days = workingDaysBetween(order, etaAuto);
+            const meta = om.get(id);
+            const order = meta?.orderDate ?? new Date();
+            // If a manual ETA was entered, delivery reflects that real date, not the auto estimate.
+            const effectiveEta = meta?.etaManual ?? etaAuto;
+            const days = workingDaysBetween(order, effectiveEta);
             return prisma.job.update({
               where: { id },
               data: { etaAuto, deliveryTime: deliveryLabel(days) },
@@ -175,18 +178,21 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
     }
   }
 
-  // Compute deliveryTime label for each updated job (based on orderDate → etaAuto)
+  // Compute deliveryTime label for each updated job.
+  // Use the manual ETA when present (real entered date), otherwise the auto estimate.
   const jobMeta = await prisma.job.findMany({
     where: { id: { in: Object.keys(updates) } },
-    select: { id: true, orderDate: true },
+    select: { id: true, orderDate: true, etaManual: true },
   });
-  const orderMap = new Map(jobMeta.map((j) => [j.id, j.orderDate]));
+  const metaMap = new Map(jobMeta.map((j) => [j.id, j]));
 
   // Persist
   await prisma.$transaction(
     Object.entries(updates).map(([id, etaAuto]) => {
-      const order = orderMap.get(id) ?? new Date();
-      const days = workingDaysBetween(order, etaAuto);
+      const meta = metaMap.get(id);
+      const order = meta?.orderDate ?? new Date();
+      const effectiveEta = meta?.etaManual ?? etaAuto;
+      const days = workingDaysBetween(order, effectiveEta);
       return prisma.job.update({
         where: { id },
         data: { etaAuto, deliveryTime: deliveryLabel(days) },
