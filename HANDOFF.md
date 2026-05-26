@@ -43,8 +43,8 @@ npm run dev
 | Role | สิทธิ์ |
 |---|---|
 | **OWNER** | ทุกอย่าง + จัดการ user ที่ `/admin/users` |
-| **PRODUCTION** | สร้าง/แก้/ลบงาน, เปลี่ยน status, override ETA, จัดการวัสดุ, รับเข้าคลัง, recipe รุ่นกระบอก |
-| **SUPPORT** | สร้างงาน + แก้/ลบเฉพาะงานตัวเอง (ไม่เปลี่ยน status/ETA/cancelled), จัดการวัสดุ |
+| **PRODUCTION** | สร้าง/แก้/ลบงาน, เปลี่ยน status, override ETA, จัดการวัสดุ, รับเข้าคลัง, recipe รุ่นกระบอก, **อนุมัติคำขอ SUPPORT** (`/approvals`) |
+| **SUPPORT** | สร้าง**คำขอ**งาน (→ status `WAITING_APPROVAL`) + แก้/ลบเฉพาะของตัวเอง. **ไม่ตั้ง** ช่าง/วัสดุ/รุ่น/status/ETA (PRODUCTION กรอกตอน approve). จัดการวัสดุ (server ยังอนุญาต แต่ nav ซ่อน) |
 | **SHIPPING** | รับเข้าคลัง + จัดการสต๊อกวัสดุ (ไม่ยุ่งงานผลิต/recipe/user) |
 | **SALES** | read-only |
 
@@ -54,7 +54,13 @@ Helpers ใน `src/lib/auth.ts`:
 - `canReceiveStock` = OWNER / PRODUCTION / SHIPPING (รับเข้าคลัง)
 - `canEditMaterials` = OWNER / PRODUCTION / SUPPORT / SHIPPING (จัดการวัสดุ)
 
-ทุก API route เช็ค role; page ส่ง `canEdit`/`canReceive` ลง component เพื่อซ่อนปุ่ม. SUPPORT ที่เปิดฟอร์มงานจะไม่เห็นช่อง status/ETA (server ignore อยู่แล้ว).
+ทุก API route เช็ค role; page ส่ง `canEdit`/`canReceive` ลง component เพื่อซ่อนปุ่ม. SUPPORT ที่เปิดฟอร์มงานจะไม่เห็นช่อง ช่าง/รุ่น/วัสดุ/status/ETA (server ignore อยู่แล้ว — ดู PATCH `jobs/[id]` strip `assignedToId`+`materials` สำหรับ SUPPORT).
+
+**Nav แสดงตาม role** (`NavBar.tsx`): OWNER เห็นทุกเมนู; PRODUCTION = Dashboard·รออนุมัติ·ประวัติ·คลัง·รุ่น·งานใหม่; SUPPORT = Dashboard·ประวัติ·งานใหม่; SHIPPING = Dashboard·สต๊อก·รับเข้าคลัง; SALES = Dashboard·ประวัติ. ลิงก์ "รออนุมัติ" มี badge นับจาก `/api/jobs/pending-approval`.
+
+### Approval workflow (SUPPORT → PRODUCTION)
+
+SUPPORT สร้างงาน = **คำขอ** (กรอกแค่ docNo/วันสั่ง/ลูกค้า/รายการ/จำนวน/เซล/หมายเหตุ) → บันทึกเป็น status `WAITING_APPROVAL` (ไม่มี BOM/ช่าง/ETA, ไม่ตัดสต๊อก, scheduler ข้าม). PRODUCTION/OWNER เปิด `/approvals` → เลือกรุ่น/ระบุวัสดุ/เลือกช่าง → **อนุมัติ** = PATCH `{status: IN_PROGRESS, assignedToId, materials, item, qty}` (ตัดสต๊อก + คิด ETA + set startedAt) หรือ **ไม่อนุมัติ** = CANCELLED. ผู้สร้างคำขอ (`createdBy`) แสดงในหน้า approvals + job detail.
 
 ---
 
@@ -140,7 +146,7 @@ ProductMaterial id, productId, materialId, qtyPerUnit @@unique([productId, mater
 Delivery      id, title, note, photo (base64), qtyReceived, lengthMm, materialId, createdById
 ```
 
-**Status** (string): PENDING / IN_PROGRESS / PAUSED / QC / DONE / CANCELLED — label/สีใน `src/lib/eta.ts`.
+**Status** (string): WAITING_APPROVAL / PENDING / IN_PROGRESS / PAUSED / QC / DONE / CANCELLED — label/สีใน `src/lib/eta.ts`. (string column → เพิ่ม status ใหม่ไม่ต้อง migrate)
 **Material categories / units** — `src/lib/materials.ts` (MATERIAL_CATEGORIES, MATERIAL_UNITS, LENGTH_UNITS).
 
 ---
@@ -153,10 +159,11 @@ src/
   app/
     page.tsx                 # dashboard (JobTable + StatsSidebar)
     login/  history/  materials/  deliveries/  products/    # pages (force-dynamic)
+    approvals/page.tsx       # PRODUCTION/OWNER อนุมัติคำขอ SUPPORT
     admin/users/page.tsx     # OWNER only
     jobs/new, jobs/[id]      # JobForm
     api/
-      jobs/ (route, [id], bulk)
+      jobs/ (route, [id], bulk, pending-approval)
       materials/ (route, [id], bulk)
       products/ (route, [id])
       deliveries/ (route, [id]/photo)
@@ -165,7 +172,8 @@ src/
   components/
     JobTable, JobForm, EtaPopup, StatsSidebar, UploadExcel,
     MaterialsTable, UploadMaterialsExcel, ProductsTable,
-    DeliveriesView, HistoryView, UsersAdmin, NavBar, Providers
+    DeliveriesView, HistoryView, UsersAdmin, NavBar, Providers,
+    ApprovalsView
   lib/
     auth.ts        # NextAuth + role helpers
     prisma.ts      # singleton

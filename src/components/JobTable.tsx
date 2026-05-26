@@ -65,7 +65,7 @@ const SORT_LABEL: Record<SortKey, string> = {
 };
 
 const STATUS_ORDER: Record<Status, number> = {
-  PENDING: 0, IN_PROGRESS: 1, PAUSED: 2, QC: 3, DONE: 4, CANCELLED: 5,
+  WAITING_APPROVAL: 0, PENDING: 1, IN_PROGRESS: 2, PAUSED: 3, QC: 4, DONE: 5, CANCELLED: 6,
 };
 
 function sortJobs(arr: Job[], key: SortKey, dir: "asc" | "desc"): Job[] {
@@ -460,11 +460,15 @@ export default function JobTable({
                     <td><input type="number" min={1} className={input + " text-center"} value={editDraft!.qty}
                       onChange={(e) => setEditDraft({ ...editDraft!, qty: Number(e.target.value) })} /></td>
                     <td>
-                      <select className={input} value={editDraft!.assignedToId}
-                        onChange={(e) => setEditDraft({ ...editDraft!, assignedToId: e.target.value })}>
-                        <option value="">- ไม่กำหนด -</option>
-                        {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                      </select>
+                      {isFullEditor ? (
+                        <select className={input} value={editDraft!.assignedToId}
+                          onChange={(e) => setEditDraft({ ...editDraft!, assignedToId: e.target.value })}>
+                          <option value="">- ไม่กำหนด -</option>
+                          {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gray-400">PRODUCTION กำหนด</span>
+                      )}
                     </td>
                     <td>
                       <select className={input} value={editDraft!.salesOwnerId}
@@ -734,7 +738,7 @@ function DraftFields({
   const gridCls = compact ? "grid grid-cols-1 gap-2" : "grid grid-cols-1 sm:grid-cols-2 gap-3";
   return (
     <div className={gridCls}>
-      {products.length > 0 && (
+      {canSetStatus && products.length > 0 && (
         <div className="sm:col-span-2 bg-blue-50 border border-blue-200 rounded p-2">
           <div className={lbl}>เลือกรุ่นกระบอก (เติมรายการ + วัสดุ → ตัดสต๊อกเมื่อบันทึก)</div>
           <select className={inp}
@@ -780,14 +784,16 @@ function DraftFields({
         <input type="number" min={1} className={inp} value={draft.qty}
           onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} />
       </div>
-      <div>
-        <div className={lbl}>ผู้รับผิดชอบ</div>
-        <select className={inp} value={draft.assignedToId}
-          onChange={(e) => setDraft({ ...draft, assignedToId: e.target.value })}>
-          <option value="">- ไม่กำหนด -</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-        </select>
-      </div>
+      {canSetStatus && (
+        <div>
+          <div className={lbl}>ผู้รับผิดชอบ</div>
+          <select className={inp} value={draft.assignedToId}
+            onChange={(e) => setDraft({ ...draft, assignedToId: e.target.value })}>
+            <option value="">- ไม่กำหนด -</option>
+            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
+      )}
       <div>
         <div className={lbl}>งานของเซล</div>
         <select className={inp} value={draft.salesOwnerId}

@@ -169,16 +169,18 @@ export default function JobForm({
           onChange={(e) => setF({ ...f, qty: Number(e.target.value) })} />
       </div>
 
-      <div>
-        <div className={label}>ผู้รับผิดชอบ</div>
-        <select className={input} value={f.assignedToId}
-          onChange={(e) => setF({ ...f, assignedToId: e.target.value })}>
-          <option value="">- ยังไม่กำหนด -</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>{u.name} ({u.username})</option>
-          ))}
-        </select>
-      </div>
+      {canSetStatus && (
+        <div>
+          <div className={label}>ผู้รับผิดชอบ</div>
+          <select className={input} value={f.assignedToId}
+            onChange={(e) => setF({ ...f, assignedToId: e.target.value })}>
+            <option value="">- ยังไม่กำหนด -</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>{u.name} ({u.username})</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div>
         <div className={label}>งานของเซล</div>
         <select className={input} value={f.salesOwnerId}
@@ -209,7 +211,8 @@ export default function JobForm({
         </div>
       )}
 
-      {/* Bill of materials */}
+      {/* Bill of materials — PRODUCTION-only; SUPPORT requests get their BOM at approval */}
+      {canSetStatus && (
       <div className="sm:col-span-2 border-t pt-3">
         {products.length > 0 && (
           <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-2">
@@ -262,6 +265,7 @@ export default function JobForm({
           </div>
         )}
       </div>
+      )}
 
       {err && <div className="sm:col-span-2 text-red-600 text-sm">{err}</div>}
 

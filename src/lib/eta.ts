@@ -15,6 +15,7 @@ export function computeAutoEta(opts: {
 }
 
 export const STATUSES = [
+  "WAITING_APPROVAL",
   "PENDING",
   "IN_PROGRESS",
   "PAUSED",
@@ -25,6 +26,7 @@ export const STATUSES = [
 export type Status = (typeof STATUSES)[number];
 
 export const STATUS_LABEL: Record<Status, string> = {
+  WAITING_APPROVAL: "รออนุมัติ",
   PENDING: "รอผลิต",
   IN_PROGRESS: "กำลังผลิต",
   PAUSED: "หยุดชั่วคราว",
@@ -48,6 +50,7 @@ export const DELIVERY_OPTIONS = [
 ];
 
 export const STATUS_COLOR: Record<Status, string> = {
+  WAITING_APPROVAL: "bg-amber-200 text-amber-900",
   PENDING: "bg-gray-200 text-gray-800",
   IN_PROGRESS: "bg-blue-200 text-blue-900",
   PAUSED: "bg-yellow-200 text-yellow-900",

@@ -86,7 +86,7 @@ async function findLatestAssignedEta(): Promise<Date | null> {
   const latest = await prisma.job.findFirst({
     where: {
       cancelled: false,
-      status: { notIn: ["DONE", "CANCELLED"] },
+      status: { notIn: ["WAITING_APPROVAL", "DONE", "CANCELLED"] },
       assignedToId: { not: null },
       etaAuto: { not: null },
     },
@@ -111,7 +111,7 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
     const where: any = {
       assignedToId: wid,
       cancelled: false,
-      status: { notIn: ["DONE", "CANCELLED"] },
+      status: { notIn: ["WAITING_APPROVAL", "DONE", "CANCELLED"] },
     };
     const queue: QueueJob[] = await prisma.job.findMany({
       where,

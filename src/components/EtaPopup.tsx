@@ -6,6 +6,7 @@ type Job = {
   customer: string;
   item: string;
   qty: number;
+  status?: string;
   deliveryTime?: string;
   assignedTo: { id: string; name: string } | null;
   salesOwner?: { id: string; name: string } | null;
@@ -34,38 +35,48 @@ export default function EtaPopup({
   mode: "created" | "updated";
 }) {
   const eta = job.etaManual ?? job.etaAuto;
+  const isRequest = job.status === "WAITING_APPROVAL";
   return (
     <div className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4"
       onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-4">
-          <div className="text-3xl">{mode === "created" ? "✅" : "🔄"}</div>
+          <div className="text-3xl">{isRequest ? "📨" : mode === "created" ? "✅" : "🔄"}</div>
           <div>
             <h2 className="font-bold text-lg">
-              {mode === "created" ? "บันทึกงานแล้ว" : "อัปเดตงานแล้ว"}
+              {isRequest ? "ส่งคำขอแล้ว" : mode === "created" ? "บันทึกงานแล้ว" : "อัปเดตงานแล้ว"}
             </h2>
-            <p className="text-xs text-gray-500">ระบบคำนวณวันเสร็จให้อัตโนมัติ</p>
+            <p className="text-xs text-gray-500">
+              {isRequest ? "รอ PRODUCTION อนุมัติและสั่งงาน" : "ระบบคำนวณวันเสร็จให้อัตโนมัติ"}
+            </p>
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
-          <div className="text-xs text-blue-700 mb-1">📅 กำหนดวันเสร็จ</div>
-          <div className="text-2xl font-bold text-blue-900">
-            {fmtDateLong(eta)}
+        {isRequest ? (
+          <div className="bg-amber-50 border border-amber-200 rounded p-4 mb-4 text-sm text-amber-800">
+            งานถูกบันทึกเป็น <b>คำขอรออนุมัติ</b> — PRODUCTION จะเลือกช่าง ระบุวัสดุ/รุ่นกระบอก
+            แล้วอนุมัติเพื่อเริ่มผลิต. วันเสร็จจะคำนวณหลังอนุมัติ.
           </div>
-          {job.deliveryTime && (
-            <div className="text-sm text-blue-700 mt-2">
-              ⏱ ระยะส่งงาน: <b>{job.deliveryTime}</b>
+        ) : (
+          <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
+            <div className="text-xs text-blue-700 mb-1">📅 กำหนดวันเสร็จ</div>
+            <div className="text-2xl font-bold text-blue-900">
+              {fmtDateLong(eta)}
             </div>
-          )}
-          {job.etaManual && (
-            <div className="text-xs text-blue-600 mt-1">(กำหนดเอง)</div>
-          )}
-          {!job.etaManual && job.etaAuto && (
-            <div className="text-xs text-blue-600 mt-1">(คำนวณอัตโนมัติจากคิวงาน)</div>
-          )}
-        </div>
+            {job.deliveryTime && (
+              <div className="text-sm text-blue-700 mt-2">
+                ⏱ ระยะส่งงาน: <b>{job.deliveryTime}</b>
+              </div>
+            )}
+            {job.etaManual && (
+              <div className="text-xs text-blue-600 mt-1">(กำหนดเอง)</div>
+            )}
+            {!job.etaManual && job.etaAuto && (
+              <div className="text-xs text-blue-600 mt-1">(คำนวณอัตโนมัติจากคิวงาน)</div>
+            )}
+          </div>
+        )}
 
         <div className="text-sm space-y-1 mb-4">
           <Row label="เลขที่เอกสาร" value={job.docNo} />

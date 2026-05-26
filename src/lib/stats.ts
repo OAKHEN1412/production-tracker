@@ -11,6 +11,7 @@ export type JobLike = {
 
 export type Overall = {
   totalJobs: number;
+  waitingApproval: { jobs: number; qty: number };
   pending: { jobs: number; qty: number };
   inProgress: { jobs: number; qty: number };
   paused: { jobs: number; qty: number };
@@ -37,6 +38,7 @@ function isThisMonth(d?: Date | string | null) {
 export function computeOverall(jobs: JobLike[]): Overall {
   const o: Overall = {
     totalJobs: jobs.length,
+    waitingApproval: { jobs: 0, qty: 0 },
     pending: { jobs: 0, qty: 0 },
     inProgress: { jobs: 0, qty: 0 },
     paused: { jobs: 0, qty: 0 },
@@ -50,6 +52,10 @@ export function computeOverall(jobs: JobLike[]): Overall {
       continue;
     }
     switch (j.status) {
+      case "WAITING_APPROVAL":
+        o.waitingApproval.jobs++;
+        o.waitingApproval.qty += j.qty;
+        break;
       case "PENDING":
         o.pending.jobs++;
         o.pending.qty += j.qty;

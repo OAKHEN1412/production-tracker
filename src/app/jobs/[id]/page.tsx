@@ -14,6 +14,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
     where: { id: params.id },
     include: {
       assignedTo: { select: { id: true, name: true, username: true } },
+      createdBy: { select: { name: true } },
       logs: { orderBy: { createdAt: "desc" }, take: 20 },
       materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } },
     },
@@ -52,6 +53,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
           {STATUS_LABEL[job.status as Status]}
         </span>
       </h1>
+      <div className="text-xs text-gray-500 -mt-2">ผู้สร้างงาน: {job.createdBy?.name ?? "-"}</div>
 
       {(role === "PRODUCTION" || role === "OWNER") ? (
         <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} products={products} initial={JSON.parse(JSON.stringify(job))} />

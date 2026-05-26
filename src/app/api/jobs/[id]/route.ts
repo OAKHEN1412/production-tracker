@@ -65,6 +65,8 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
   // SUPPORT restrictions:
   //  - can only edit jobs they created
   //  - cannot change: status, cancelled, etaManual, startedAt, finishedAt
+  //  - cannot set the worker or the bill of materials — those belong to PRODUCTION
+  //    at approval time (a SUPPORT job stays a request until then).
   if (role === "SUPPORT") {
     if (existing.createdById !== (session.user as any).id) {
       return NextResponse.json({ error: "forbidden: not your job" }, { status: 403 });
@@ -76,6 +78,8 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       etaManual: undefined,
       startedAt: undefined,
       finishedAt: undefined,
+      assignedToId: undefined,
+      materials: undefined,
     };
   }
 

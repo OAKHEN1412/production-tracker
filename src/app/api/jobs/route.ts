@@ -55,7 +55,9 @@ export async function POST(req: NextRequest) {
   }
   const data = parsed.data;
 
-  // SUPPORT cannot set status (must default PENDING) or etaManual
+  // SUPPORT files a request, not a ready-to-run job: it lands in WAITING_APPROVAL
+  // and PRODUCTION fills in the worker / materials / recipe at approval time.
+  // So SUPPORT can't set status, ETA, assignee, or the bill of materials here.
   const isSupport = role === "SUPPORT";
 
   // check duplicate docNo before insert
@@ -70,7 +72,7 @@ export async function POST(req: NextRequest) {
   const last = await prisma.job.findFirst({ orderBy: { seq: "desc" }, select: { seq: true } });
   const nextSeq = (last?.seq ?? 0) + 1;
 
-  const finalStatus = isSupport ? "PENDING" : data.status ?? "PENDING";
+  const finalStatus = isSupport ? "WAITING_APPROVAL" : data.status ?? "PENDING";
   // Mirror PATCH's status side-effects so a job created directly as IN_PROGRESS/DONE
   // gets its timestamps (otherwise "done this month" stats and history miss it).
   const now = new Date();
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
       qty: data.qty,
       notes: data.notes ?? null,
       etaManual: isSupport ? null : data.etaManual ? new Date(data.etaManual) : null,
-      assignedToId: data.assignedToId ?? null,
+      assignedToId: isSupport ? null : data.assignedToId ?? null,
       salesOwnerId: data.salesOwnerId ?? null,
       status: finalStatus,
       startedAt,
@@ -102,7 +104,8 @@ export async function POST(req: NextRequest) {
   });
 
   // Bill of materials + deduct stock as soon as the job has materials.
-  if (data.materials) {
+  // SUPPORT requests carry no BOM yet — PRODUCTION sets it when approving.
+  if (!isSupport && data.materials) {
     await reconcileJobMaterials({
       jobId: job.id,
       oldQty: job.qty,

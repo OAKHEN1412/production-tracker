@@ -1,12 +1,60 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+
+type NavLink = { href: string; label: string; cls?: string; badge?: number };
 
 export default function NavBar() {
   const { data } = useSession();
-  const role = (data?.user as any)?.role;
+  const role = (data?.user as any)?.role as string | undefined;
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(0);
+
+  const canApprove = role === "OWNER" || role === "PRODUCTION";
+  const canCreate = role === "OWNER" || role === "PRODUCTION" || role === "SUPPORT";
+  const canWarehouse = role === "OWNER" || role === "PRODUCTION" || role === "SHIPPING";
+  const canRecipe = role === "OWNER" || role === "PRODUCTION";
+  const seesHistory = role !== "SHIPPING"; // everyone but warehouse-only
+
+  // Live-ish badge of requests awaiting approval (re-checked on navigation).
+  useEffect(() => {
+    if (!canApprove) return;
+    let alive = true;
+    fetch("/api/jobs/pending-approval")
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((j) => alive && setPendingApproval(j.count ?? 0))
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [canApprove, pathname]);
+
+  // Build the link set this role actually uses — keeps the bar uncluttered.
+  const links: NavLink[] = [{ href: "/", label: "Dashboard" }];
+  if (canApprove) links.push({ href: "/approvals", label: "รออนุมัติ", cls: "text-amber-700", badge: pendingApproval });
+  if (seesHistory) links.push({ href: "/history", label: "ประวัติการผลิต" });
+  if (canWarehouse) {
+    links.push({ href: "/materials", label: "สต๊อกวัสดุ" });
+    links.push({ href: "/deliveries", label: "รับเข้าคลัง" });
+  }
+  if (canRecipe) links.push({ href: "/products", label: "รุ่นกระบอก" });
+  if (canCreate) links.push({ href: "/jobs/new", label: "+ งานใหม่", cls: "text-blue-600" });
+  if (role === "OWNER") links.push({ href: "/admin/users", label: "จัดการผู้ใช้", cls: "text-purple-700" });
+
+  function renderLink(l: NavLink, onClick?: () => void) {
+    return (
+      <Link key={l.href} href={l.href} onClick={onClick}
+        className={`text-sm hover:underline ${l.cls ?? "text-gray-700 hover:text-black"}`}>
+        {l.label}
+        {l.badge ? (
+          <span className="ml-1 inline-flex items-center justify-center text-[10px] font-bold text-white bg-amber-600 rounded-full px-1.5 py-0.5">
+            {l.badge}
+          </span>
+        ) : null}
+      </Link>
+    );
+  }
 
   return (
     <header className="bg-white border-b sticky top-0 z-20">
@@ -17,19 +65,7 @@ export default function NavBar() {
 
         {/* desktop */}
         <nav className="hidden md:flex items-center gap-4">
-          <Link href="/" className="text-sm text-gray-700 hover:text-black">Dashboard</Link>
-          <Link href="/history" className="text-sm text-gray-700 hover:text-black">ประวัติการผลิต</Link>
-          <Link href="/materials" className="text-sm text-gray-700 hover:text-black">สต๊อกวัสดุ</Link>
-          <Link href="/deliveries" className="text-sm text-gray-700 hover:text-black">รับเข้าคลัง</Link>
-          <Link href="/products" className="text-sm text-gray-700 hover:text-black">รุ่นกระบอก</Link>
-          {(role === "PRODUCTION" || role === "OWNER" || role === "SUPPORT") && (
-            <Link href="/jobs/new" className="text-sm text-blue-600 hover:underline">+ งานใหม่</Link>
-          )}
-          {role === "OWNER" && (
-            <Link href="/admin/users" className="text-sm text-purple-700 hover:underline">
-              จัดการผู้ใช้
-            </Link>
-          )}
+          {links.map((l) => renderLink(l))}
           {data?.user ? (
             <>
               <span className="text-sm text-gray-700">
@@ -66,21 +102,9 @@ export default function NavBar() {
       {/* mobile menu */}
       {open && (
         <nav className="md:hidden border-t bg-white px-3 py-2 flex flex-col gap-2 text-sm">
-          <Link href="/" onClick={() => setOpen(false)} className="py-1.5">Dashboard</Link>
-          <Link href="/history" onClick={() => setOpen(false)} className="py-1.5">ประวัติการผลิต</Link>
-          <Link href="/materials" onClick={() => setOpen(false)} className="py-1.5">สต๊อกวัสดุ</Link>
-          <Link href="/deliveries" onClick={() => setOpen(false)} className="py-1.5">รับเข้าคลัง</Link>
-          <Link href="/products" onClick={() => setOpen(false)} className="py-1.5">รุ่นกระบอก</Link>
-          {(role === "PRODUCTION" || role === "OWNER" || role === "SUPPORT") && (
-            <Link href="/jobs/new" onClick={() => setOpen(false)} className="py-1.5 text-blue-600">
-              + งานใหม่
-            </Link>
-          )}
-          {role === "OWNER" && (
-            <Link href="/admin/users" onClick={() => setOpen(false)} className="py-1.5 text-purple-700">
-              จัดการผู้ใช้
-            </Link>
-          )}
+          {links.map((l) => (
+            <div key={l.href} className="py-1.5">{renderLink(l, () => setOpen(false))}</div>
+          ))}
           {data?.user && (
             <div className="border-t pt-2 mt-1 flex items-center justify-between">
               <span className="text-gray-700">
