@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MATERIAL_CATEGORIES, MATERIAL_UNITS, isLowStock, type Material } from "@/lib/materials";
+import UploadMaterialsExcel from "./UploadMaterialsExcel";
 
 type Draft = {
   code: string;
@@ -170,12 +171,15 @@ export default function MaterialsTable({
             onChange={(e) => setQ(e.target.value)}
           />
           {canEdit && (
-            <button
-              onClick={() => setAdding(!adding)}
-              className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded whitespace-nowrap"
-            >
-              {adding ? "✕ ปิดฟอร์ม" : "+ เพิ่มวัสดุ"}
-            </button>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setAdding(!adding)}
+                className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded whitespace-nowrap"
+              >
+                {adding ? "✕ ปิดฟอร์ม" : "+ เพิ่มวัสดุ"}
+              </button>
+              <UploadMaterialsExcel />
+            </div>
           )}
         </div>
         <div className="flex flex-wrap gap-1.5 items-center">
