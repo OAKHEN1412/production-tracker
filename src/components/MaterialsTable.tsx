@@ -11,6 +11,7 @@ import {
   type Material,
 } from "@/lib/materials";
 import UploadMaterialsExcel from "./UploadMaterialsExcel";
+import LengthEditor from "./LengthEditor";
 
 type Draft = {
   code: string;
@@ -78,6 +79,7 @@ export default function MaterialsTable({
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Draft | null>(null);
+  const [lenEdit, setLenEdit] = useState<Material | null>(null);
 
   const lowCount = useMemo(() => materials.filter(isLowStock).length, [materials]);
 
@@ -185,6 +187,10 @@ export default function MaterialsTable({
 
   return (
     <div className="space-y-3">
+      {lenEdit && (
+        <LengthEditor material={lenEdit} onClose={() => setLenEdit(null)} onSaved={refresh} />
+      )}
+
       {/* Toolbar */}
       <div className="bg-white p-3 rounded shadow flex flex-col gap-2">
         <div className="flex flex-col sm:flex-row gap-2">
@@ -315,10 +321,17 @@ export default function MaterialsTable({
                   <td className="text-xs">{m.location ?? <span className="text-gray-300">-</span>}</td>
                   {canEdit && (
                     <td className="text-right whitespace-nowrap">
-                      <button onClick={() => adjust(m)} disabled={busyId === m.id}
-                        className="text-emerald-700 text-xs px-2 py-1 hover:underline disabled:opacity-50">
-                        ± ปรับ
-                      </button>
+                      {isLengthTracked(m.unit) ? (
+                        <button onClick={() => setLenEdit(m)}
+                          className="text-emerald-700 text-xs px-2 py-1 hover:underline">
+                          📏 ความยาว
+                        </button>
+                      ) : (
+                        <button onClick={() => adjust(m)} disabled={busyId === m.id}
+                          className="text-emerald-700 text-xs px-2 py-1 hover:underline disabled:opacity-50">
+                          ± ปรับ
+                        </button>
+                      )}
                       <button onClick={() => { setEditId(m.id); setEditDraft(toDraft(m)); }}
                         className="text-blue-600 text-xs px-2 py-1 hover:underline">✎ แก้</button>
                       <button onClick={() => del(m)} disabled={busyId === m.id}
@@ -375,8 +388,13 @@ export default function MaterialsTable({
               {m.notes && <div className="text-xs text-gray-400 italic mt-1">{m.notes}</div>}
               {canEdit && (
                 <div className="flex gap-2 mt-3 pt-2 border-t">
-                  <button onClick={() => adjust(m)} disabled={busyId === m.id}
-                    className="text-xs px-3 py-1.5 rounded border border-emerald-600 text-emerald-700 disabled:opacity-50">± ปรับสต๊อก</button>
+                  {isLengthTracked(m.unit) ? (
+                    <button onClick={() => setLenEdit(m)}
+                      className="text-xs px-3 py-1.5 rounded border border-emerald-600 text-emerald-700">📏 ความยาว</button>
+                  ) : (
+                    <button onClick={() => adjust(m)} disabled={busyId === m.id}
+                      className="text-xs px-3 py-1.5 rounded border border-emerald-600 text-emerald-700 disabled:opacity-50">± ปรับสต๊อก</button>
+                  )}
                   <button onClick={() => { setEditId(m.id); setEditDraft(toDraft(m)); }}
                     className="text-xs px-3 py-1.5 rounded border border-blue-600 text-blue-600">✎ แก้</button>
                   <button onClick={() => del(m)} disabled={busyId === m.id}
