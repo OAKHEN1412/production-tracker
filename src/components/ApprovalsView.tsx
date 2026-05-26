@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { isLengthTracked } from "@/lib/materials";
 
 type User = { id: string; name: string; username: string };
-type MatRow = { materialId: string; qtyPerUnit: number };
+type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
 type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
 
@@ -78,10 +79,10 @@ function RequestCard({
     const p = products.find((x) => x.id === id);
     if (!p) return;
     setItem(p.code || p.name);
-    setMats(p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit })));
+    setMats(p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })));
   }
   function addMat() {
-    setMats([...mats, { materialId: "", qtyPerUnit: 1 }]);
+    setMats([...mats, { materialId: "", qtyPerUnit: 1, cutLengthMm: 0 }]);
   }
   function updateMat(i: number, patch: Partial<MatRow>) {
     setMats(mats.map((m, idx) => (idx === i ? { ...m, ...patch } : m)));
@@ -110,7 +111,7 @@ function RequestCard({
   function approve() {
     const cleanMats = mats
       .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
-      .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit) }));
+      .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit), cutLengthMm: Number(m.cutLengthMm) || 0 }));
     // Approve = start production now: set worker + BOM, flip to IN_PROGRESS.
     patch({
       status: "IN_PROGRESS",
@@ -194,24 +195,38 @@ function RequestCard({
           <div className="text-xs text-gray-400">ยังไม่ได้ระบุวัสดุ</div>
         ) : (
           <div className="space-y-2">
-            {mats.map((m, i) => (
+            {mats.map((m, i) => {
+              const lenTracked = isLengthTracked(unitOf(m.materialId));
+              return (
               <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
                 <select className={inp + " flex-1 basis-full sm:basis-0 min-w-[11rem]"} value={m.materialId}
-                  onChange={(e) => updateMat(i, { materialId: e.target.value })}>
+                  onChange={(e) => updateMat(i, { materialId: e.target.value, qtyPerUnit: 1, cutLengthMm: 0 })}>
                   <option value="">- เลือกวัสดุ -</option>
                   {allMaterials.map((opt) => (
                     <option key={opt.id} value={opt.id}>{opt.code ? `[${opt.code}] ` : ""}{opt.name}</option>
                   ))}
                 </select>
-                <input type="number" min={0} step="any" className={inp + " w-20 text-center shrink-0"}
-                  value={m.qtyPerUnit}
-                  onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
-                <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
+                {lenTracked ? (
+                  <>
+                    <input type="number" min={0} step="any" placeholder="ยาว/หน่วย"
+                      className={inp + " w-24 text-center shrink-0"}
+                      value={m.cutLengthMm || ""}
+                      onChange={(e) => updateMat(i, { qtyPerUnit: 1, cutLengthMm: Number(e.target.value) })} />
+                    <span className="text-xs text-gray-500 w-12 shrink-0">mm/ตัว</span>
+                  </>
+                ) : (
+                  <>
+                    <input type="number" min={0} step="any" className={inp + " w-20 text-center shrink-0"}
+                      value={m.qtyPerUnit}
+                      onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
+                    <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
+                  </>
+                )}
                 <button type="button" onClick={() => removeMat(i)}
                   className="text-red-600 text-sm px-2 shrink-0">✕</button>
               </div>
-            ))}
-            <div className="text-xs text-gray-400">ตัดจริง = ต่อชิ้น × {Number(qty) || 0} ชิ้น</div>
+            );})}
+            <div className="text-xs text-gray-400">ตัดความยาว/หน่วย × {Number(qty) || 0} ชิ้น</div>
           </div>
         )}
       </div>

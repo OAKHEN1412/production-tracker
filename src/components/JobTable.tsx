@@ -13,7 +13,7 @@ import UploadExcel from "./UploadExcel";
 import EtaPopup from "./EtaPopup";
 
 type User = { id: string; name: string; username: string };
-type MatRow = { materialId: string; qtyPerUnit: number };
+type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
 type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
 
 type Job = {

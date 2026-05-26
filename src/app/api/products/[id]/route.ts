@@ -10,7 +10,11 @@ const updateSchema = z.object({
   name: z.string().optional(),
   notes: z.string().nullable().optional(),
   materials: z
-    .array(z.object({ materialId: z.string(), qtyPerUnit: z.coerce.number().nonnegative() }))
+    .array(z.object({
+      materialId: z.string(),
+      qtyPerUnit: z.coerce.number().nonnegative(),
+      cutLengthMm: z.coerce.number().nonnegative().optional(),
+    }))
     .optional(),
 });
 

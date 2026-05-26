@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import JobForm from "@/components/JobForm";
 import { STATUS_LABEL, STATUS_COLOR, type Status } from "@/lib/eta";
+import { isLengthTracked } from "@/lib/materials";
 
 export default async function JobDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -40,7 +41,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
       orderBy: { name: "asc" },
       select: {
         id: true, name: true, code: true,
-        materials: { select: { materialId: true, qtyPerUnit: true } },
+        materials: { select: { materialId: true, qtyPerUnit: true, cutLengthMm: true } },
       },
     }),
   ]);
@@ -73,7 +74,10 @@ export default async function JobDetailPage({ params }: { params: { id: string }
               <ul className="list-disc ml-5 mt-1">
                 {job.materials.map((jm) => (
                   <li key={jm.id}>
-                    {jm.material.code ? `[${jm.material.code}] ` : ""}{jm.material.name} — {jm.qtyPerUnit} {jm.material.unit}
+                    {jm.material.code ? `[${jm.material.code}] ` : ""}{jm.material.name} —{" "}
+                    {isLengthTracked(jm.material.unit) && jm.cutLengthMm > 0
+                      ? `ตัด ${jm.cutLengthMm} mm/หน่วย`
+                      : `${jm.qtyPerUnit} ${jm.material.unit}`}
                   </li>
                 ))}
               </ul>

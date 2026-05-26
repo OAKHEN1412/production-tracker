@@ -29,7 +29,7 @@ export default async function NewJobPage() {
       orderBy: { name: "asc" },
       select: {
         id: true, name: true, code: true,
-        materials: { select: { materialId: true, qtyPerUnit: true } },
+        materials: { select: { materialId: true, qtyPerUnit: true, cutLengthMm: true } },
       },
     }),
   ]);

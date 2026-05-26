@@ -1,15 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isLengthTracked } from "@/lib/materials";
 
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
-type Recipe = { materialId: string; qtyPerUnit: number };
+type Recipe = { materialId: string; qtyPerUnit: number; cutLengthMm: number };
 type Product = {
   id: string;
   code: string | null;
   name: string;
   notes: string | null;
-  materials: { id: string; materialId: string; qtyPerUnit: number; material: MaterialOpt }[];
+  materials: { id: string; materialId: string; qtyPerUnit: number; cutLengthMm: number; material: MaterialOpt }[];
 };
 
 type Draft = { code: string; name: string; notes: string; mats: Recipe[] };
@@ -22,7 +23,7 @@ function toDraft(p: Product): Draft {
     code: p.code ?? "",
     name: p.name,
     notes: p.notes ?? "",
-    mats: p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit })),
+    mats: p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })),
   };
 }
 function payload(d: Draft) {
@@ -32,7 +33,7 @@ function payload(d: Draft) {
     notes: d.notes || null,
     materials: d.mats
       .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
-      .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit) })),
+      .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit), cutLengthMm: Number(m.cutLengthMm) || 0 })),
   };
 }
 
@@ -206,7 +207,11 @@ export default function ProductsTable({
                     {p.materials.map((m) => (
                       <li key={m.id} className="flex justify-between">
                         <span>{m.material.code ? `[${m.material.code}] ` : ""}{m.material.name}</span>
-                        <span className="text-gray-600">{m.qtyPerUnit} {m.material.unit}</span>
+                        <span className="text-gray-600">
+                          {isLengthTracked(m.material.unit) && m.cutLengthMm > 0
+                            ? `ตัด ${m.cutLengthMm} mm/หน่วย`
+                            : `${m.qtyPerUnit} ${m.material.unit}`}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -233,7 +238,7 @@ function Fields({
   function unitOf(id: string) {
     return allMaterials.find((m) => m.id === id)?.unit ?? "";
   }
-  function addMat() { setDraft({ ...draft, mats: [...draft.mats, { materialId: "", qtyPerUnit: 1 }] }); }
+  function addMat() { setDraft({ ...draft, mats: [...draft.mats, { materialId: "", qtyPerUnit: 1, cutLengthMm: 0 }] }); }
   function updateMat(i: number, patch: Partial<Recipe>) {
     setDraft({ ...draft, mats: draft.mats.map((m, idx) => (idx === i ? { ...m, ...patch } : m)) });
   }
@@ -272,10 +277,12 @@ function Fields({
           <div className="text-xs text-gray-400">ยังไม่ได้ระบุวัสดุ</div>
         ) : (
           <div className="space-y-2">
-            {draft.mats.map((m, i) => (
+            {draft.mats.map((m, i) => {
+              const lenTracked = isLengthTracked(unitOf(m.materialId));
+              return (
               <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
                 <select className={inp + " flex-1 basis-full sm:basis-0 min-w-[11rem]"} value={m.materialId}
-                  onChange={(e) => updateMat(i, { materialId: e.target.value })}>
+                  onChange={(e) => updateMat(i, { materialId: e.target.value, qtyPerUnit: 1, cutLengthMm: 0 })}>
                   <option value="">- เลือกวัสดุ -</option>
                   {allMaterials.map((opt) => (
                     <option key={opt.id} value={opt.id}>
@@ -283,13 +290,25 @@ function Fields({
                     </option>
                   ))}
                 </select>
-                <input type="number" min={0} step="any" className={inp + " w-20 text-center shrink-0"}
-                  value={m.qtyPerUnit}
-                  onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
-                <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
+                {lenTracked ? (
+                  <>
+                    <input type="number" min={0} step="any" placeholder="ความยาว/หน่วย"
+                      className={inp + " w-28 text-center shrink-0"}
+                      value={m.cutLengthMm || ""}
+                      onChange={(e) => updateMat(i, { qtyPerUnit: 1, cutLengthMm: Number(e.target.value) })} />
+                    <span className="text-xs text-gray-500 w-12 shrink-0">mm/ตัว</span>
+                  </>
+                ) : (
+                  <>
+                    <input type="number" min={0} step="any" className={inp + " w-20 text-center shrink-0"}
+                      value={m.qtyPerUnit}
+                      onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
+                    <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
+                  </>
+                )}
                 <button type="button" onClick={() => removeMat(i)} className="text-red-600 text-sm px-1 shrink-0">✕</button>
               </div>
-            ))}
+            );})}
           </div>
         )}
       </div>

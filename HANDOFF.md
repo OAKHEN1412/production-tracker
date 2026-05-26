@@ -101,7 +101,15 @@ Logic อยู่ใน `src/lib/stock.ts`. แนวคิด: **`Job.material
 - helper: `addPieces`, `removePiecesAtLength`, `syncMaterialBuckets` (จัดให้ Σbucket == qty หลัง count-only change; production deduct ตัดเส้นสั้นสุดก่อน; คืน → เข้า bucket `lengthMm=0` "ไม่ระบุ").
 - **บังคับระบุความยาว 3 จุด:** รับเข้าคลัง, ± ปรับ, เพิ่มวัสดุใหม่ (validate ทั้ง client + server).
 - แสดง: `7 เส้น · รวม 41.60 ม. · 6000×5, 5800×2 mm`.
-- ⚠️ ตัดสต๊อก production ยังนับเป็น "จำนวนเส้น" (BOM ไม่ระบุความยาวที่ตัด) → ตัดเส้นสั้นสุดก่อนเป็น assumption. ถ้าต้องตัดตามความยาวจริงต้องขยาย recipe ให้เก็บความยาว/ชิ้น.
+### Length-cut deduction (ตัดตามความยาวจริง)
+
+recipe/BOM เก็บ `cutLengthMm` = ความยาวตัด (mm) ต่อหน่วยผลิต สำหรับวัสดุ length-tracked (UI หน้ารุ่น/ฟอร์มงาน/approve ใส่เป็น mm, set `qtyPerUnit=1`). เมื่อตัดสต๊อก (`reconcileJobMaterials` → `cutFromBuckets`):
+- **best-fit**: ตัดจากเส้นสั้นสุดที่ ≥ ความยาวตัด, เศษกลับเป็น bucket ใหม่ (offcut). lengthMm 0 = ไม่ระบุ ตัดไม่ได้.
+- **ความยาวไม่พอ** → throw `InsufficientStockError` → route คืน 400 (ก่อนเขียน DB; PATCH reconcile **ก่อน** job.update; POST ลบงานที่เพิ่งสร้าง).
+- **แก้/ยกเลิก/ลบ** → คืน cut pieces เป็น offcut ยาว `cutLengthMm` (`addPieces`). edit = restore เก่า + cut ใหม่ (มม.รวมคงที่).
+- `Material.qty` (จำนวนเส้น) = Σ buckets เสมอ (cut path เซ็ต qty = Σ final buckets).
+- วัสดุ length-tracked ที่ `cutLengthMm=0` → ใช้ count path เดิม (ตัดจำนวนเส้น, trim สั้นสุด) — backward compatible.
+- หน้า `/materials` แสดง breakdown ความยาว → เห็นเศษเหลือหลังตัด.
 
 ---
 
@@ -138,11 +146,11 @@ Job       id, seq (unique), docNo (unique), orderDate, deliveryTime (auto),
           materialsDeducted (bool),
           assignedToId, salesOwnerId, createdById → User
 JobLog        id, jobId, status, message, createdAt
-JobMaterial   id, jobId, materialId, qtyPerUnit   @@unique([jobId, materialId])   # BOM ของงาน
+JobMaterial   id, jobId, materialId, qtyPerUnit, cutLengthMm   @@unique([jobId, materialId])   # BOM ของงาน
 Material      id, code (unique?), name, category, unit, qty, minQty, location, notes
 MaterialLength id, materialId, lengthMm, qty       @@unique([materialId, lengthMm]) # breakdown ความยาว
 Product       id, code (unique?), name (unique), notes              # รุ่นกระบอก
-ProductMaterial id, productId, materialId, qtyPerUnit @@unique([productId, materialId]) # recipe
+ProductMaterial id, productId, materialId, qtyPerUnit, cutLengthMm @@unique([productId, materialId]) # recipe
 Delivery      id, title, note, photo (base64), qtyReceived, lengthMm, materialId, createdById
 ```
 
@@ -236,7 +244,7 @@ gh api repos/OAKHEN1412/production-tracker/deployments/<id>/statuses --jq '.[0]|
 
 ## Roadmap / ที่เหลือ-ไอเดียต่อ
 
-- **ตัดสต๊อกตามความยาวจริง** — ขยาย recipe (ProductMaterial/JobMaterial) ให้เก็บความยาว/ชิ้น แทนนับเป็นเส้น
+- ~~ตัดสต๊อกตามความยาวจริง~~ ✅ ทำแล้ว (cutLengthMm + best-fit cut, ดู "Length-cut deduction")
 - ประวัติการเคลื่อนไหวสต๊อก (stock movement log) + ใครปรับเมื่อไหร่
 - Export Excel กลับ (งาน / สต๊อก)
 - แจ้งเตือนใกล้หมด / เกิน ETA (LINE Notify / email)

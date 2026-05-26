@@ -131,6 +131,8 @@ model ProductMaterial {
   materialId String
   material   Material @relation(fields: [materialId], references: [id])
   qtyPerUnit Float    @default(0)
+  // For length-tracked materials: length (mm) cut per produced unit. 0 = count-based.
+  cutLengthMm Float   @default(0)
 
   @@unique([productId, materialId])
 }
@@ -143,6 +145,8 @@ model JobMaterial {
   materialId String
   material   Material @relation(fields: [materialId], references: [id])
   qtyPerUnit Float    @default(0)
+  // Copied from the recipe at job time: length (mm) cut per unit. 0 = count-based.
+  cutLengthMm Float   @default(0)
 
   @@unique([jobId, materialId])
 }

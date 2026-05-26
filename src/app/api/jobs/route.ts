@@ -3,11 +3,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recomputeWorkerQueues } from "@/lib/scheduler";
-import { reconcileJobMaterials } from "@/lib/stock";
+import { reconcileJobMaterials, InsufficientStockError } from "@/lib/stock";
 import { z } from "zod";
 
 const materialsSchema = z
-  .array(z.object({ materialId: z.string(), qtyPerUnit: z.coerce.number().nonnegative() }))
+  .array(z.object({
+    materialId: z.string(),
+    qtyPerUnit: z.coerce.number().nonnegative(),
+    cutLengthMm: z.coerce.number().nonnegative().optional(),
+  }))
   .optional();
 
 const createSchema = z.object({
@@ -99,16 +103,25 @@ export async function POST(req: NextRequest) {
   // Bill of materials + deduct stock as soon as the job has materials.
   // SUPPORT requests carry no BOM yet — PRODUCTION sets it when approving.
   if (!isSupport && data.materials) {
-    await reconcileJobMaterials({
-      jobId: job.id,
-      oldQty: job.qty,
-      oldDeducted: false,
-      oldMaterials: [],
-      newQty: job.qty,
-      newMaterials: data.materials,
-      cancelled: finalStatus === "CANCELLED",
-      statusForLog: job.status,
-    });
+    try {
+      await reconcileJobMaterials({
+        jobId: job.id,
+        oldQty: job.qty,
+        oldDeducted: false,
+        oldMaterials: [],
+        newQty: job.qty,
+        newMaterials: data.materials,
+        cancelled: finalStatus === "CANCELLED",
+        statusForLog: job.status,
+      });
+    } catch (e) {
+      if (e instanceof InsufficientStockError) {
+        // Roll back the just-created job (cascades its log + BOM rows).
+        await prisma.job.delete({ where: { id: job.id } });
+        return NextResponse.json({ error: e.message }, { status: 400 });
+      }
+      throw e;
+    }
   }
 
   // Recompute queue ETAs for affected workers (incl. unassigned bucket)
