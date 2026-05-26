@@ -1,6 +1,6 @@
 # Production Tracker — Handoff
 
-ระบบติดตามการผลิต. Production / Support กรอกงาน → ระบบคำนวณ ETA อัตโนมัติ → Sales เห็น read-only.
+ระบบติดตามการผลิตกระบอกลม (pneumatic cylinder). Production/Support กรอกงาน → ระบบคำนวณ ETA อัตโนมัติ → Sales เห็น read-only. มีจัดการสต๊อกวัสดุ + recipe รุ่นกระบอก + รับเข้าคลังพร้อมรูปยืนยัน + ตัดสต๊อกอัตโนมัติตามการผลิต.
 
 - **Production URL:** https://production-tracker-beige.vercel.app
 - **GitHub:** https://github.com/OAKHEN1412/production-tracker (`main` = production)
@@ -14,11 +14,11 @@
 |---|---|
 | Framework | Next.js 14 (App Router) + TypeScript |
 | Auth | NextAuth (Credentials, JWT session) |
-| DB | Postgres (Neon, ap-southeast-1) |
-| ORM | Prisma 5.22 |
+| DB | Postgres (Neon, **ap-southeast-1 / Singapore**) |
+| ORM | Prisma 5 |
 | UI | Tailwind CSS |
 | Excel | xlsx (client-side parse) |
-| Hosting | Vercel (auto-deploy on push to `main`) |
+| Hosting | Vercel (auto-deploy on push to `main`, **region pinned `sin1`**) |
 
 ---
 
@@ -28,15 +28,13 @@
 git clone https://github.com/OAKHEN1412/production-tracker.git
 cd production-tracker
 npm install
-cp .env.example .env   # แล้วใส่ DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL
+cp .env.example .env   # ใส่ DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL
 npx prisma db push     # sync schema (ใช้ Neon URL เดียวกับ prod ก็ได้)
 npm run db:seed        # สร้าง user เริ่มต้น
 npm run dev
 ```
 
-หรือใช้ `setup.bat` (Windows) / `setup.ps1` ที่อยู่ใน repo
-
-Default account หลัง seed: owner / sales / chang_tee / chang_sak (รหัสดูใน `prisma/seed.ts`)
+หรือใช้ `setup.bat` / `setup.ps1` ใน repo. Default accounts ดูใน `prisma/seed.ts`.
 
 ---
 
@@ -45,173 +43,203 @@ Default account หลัง seed: owner / sales / chang_tee / chang_sak (รห
 | Role | สิทธิ์ |
 |---|---|
 | **OWNER** | ทุกอย่าง + จัดการ user ที่ `/admin/users` |
-| **PRODUCTION** | สร้าง / แก้ / ลบ / เปลี่ยน status / override ETA |
-| **SUPPORT** | สร้างงาน + แก้/ลบเฉพาะของตัวเอง ไม่เปลี่ยน status ไม่ override ETA |
+| **PRODUCTION** | สร้าง/แก้/ลบงาน, เปลี่ยน status, override ETA, จัดการวัสดุ, รับเข้าคลัง, recipe รุ่นกระบอก |
+| **SUPPORT** | สร้างงาน + แก้/ลบเฉพาะงานตัวเอง (ไม่เปลี่ยน status/ETA/cancelled), จัดการวัสดุ |
+| **SHIPPING** | รับเข้าคลัง + จัดการสต๊อกวัสดุ (ไม่ยุ่งงานผลิต/recipe/user) |
 | **SALES** | read-only |
 
-Logic อยู่ใน `src/lib/auth.ts` (`canCreateJob`, `canFullEdit`). API endpoint check role ทุก route (ใน `src/app/api/jobs/`).
+Helpers ใน `src/lib/auth.ts`:
+- `canCreateJob` = OWNER / PRODUCTION / SUPPORT
+- `canFullEdit` = OWNER / PRODUCTION (ใช้กับ products/recipe)
+- `canReceiveStock` = OWNER / PRODUCTION / SHIPPING (รับเข้าคลัง)
+- `canEditMaterials` = OWNER / PRODUCTION / SUPPORT / SHIPPING (จัดการวัสดุ)
+
+ทุก API route เช็ค role; page ส่ง `canEdit`/`canReceive` ลง component เพื่อซ่อนปุ่ม. SUPPORT ที่เปิดฟอร์มงานจะไม่เห็นช่อง status/ETA (server ignore อยู่แล้ว).
 
 ---
 
-## ETA Logic (สำคัญ)
+## ETA Logic
 
 อยู่ใน `src/lib/scheduler.ts`. Trigger ทุกครั้งที่ POST/PATCH/DELETE /api/jobs ผ่าน `recomputeWorkerQueues()`.
 
 **Rate (ชิ้น / วันทำการ):**
-- มีช่าง + `item` ตรงกับงานก่อนหน้าในคิวช่างคนนั้น → **8**
+- มีช่าง + `item` ตรงกับงานก่อนหน้าในคิวช่าง → **8**
 - มีช่าง + `item` ต่าง → **4**
 - ไม่ assign ช่าง → **6**
 
-**คิว:**
-- 1 ช่าง = serial ทีละงาน เรียงตาม `createdAt`
-- งาน unassigned ใช้ baseline = ETA งานช้าสุดในระบบ (worst-case)
-- ข้ามเสาร์-อาทิตย์
+**คิว:** 1 ช่าง = serial ทีละงาน เรียง `createdAt`; งาน unassigned baseline = ETA งานช้าสุดในระบบ; ข้ามเสาร์-อาทิตย์.
 
-**Recompute ตอนไหน:**
-- หลัง create / update assignee/qty/item / delete / bulk upload
-- กระทบช่างเก่า + ช่างใหม่ + bucket unassigned
-
-**Popup:** หลัง save จะ pop แสดงวันเสร็จ + ช่าง + เซล + delivery label (3-5 วันทำการ ฯลฯ)
+**Popup:** หลัง save (สร้าง / แก้ assignee·qty·item·ETA) pop แสดงวันเสร็จ + ช่าง + เซล + delivery label.
 
 ---
 
-## Schema
+## Stock / Materials (สำคัญ)
 
-`prisma/schema.prisma`
+Logic อยู่ใน `src/lib/stock.ts`. แนวคิด: **`Job.materialsDeducted` flag + reconcile แบบ delta**.
+
+- **ตัดสต๊อก:** งานมี BOM (วัสดุที่ใช้/ชิ้น) → ตัดทันทีเมื่อบันทึก = `qtyPerUnit × job.qty`.
+- **`reconcileJobMaterials`** — คำนวณส่วนต่างระหว่าง "ที่ตัดไปแล้ว" กับ "ที่ควรเป็น" แล้วปรับเฉพาะ delta ใน transaction เดียว. ครอบ: แก้ qty / เพิ่ม-ลบ-เปลี่ยนวัสดุ / ยกเลิก-reactivate / ลบงาน.
+- **ยกเลิกงาน** (cancelled flag หรือ status CANCELLED) → คืนสต๊อก; reactivate → ตัดกลับ. (`shouldDeduct = มี BOM && ไม่ยกเลิก`)
+- **ลบงาน** → `restoreDeductedMaterials` คืนตาม flag.
+- **deduct-on-DONE** เป็น safety net สำหรับ row เก่าที่มี BOM แต่ flag ยังไม่ตัด.
+- **invariant:** เมื่อ `materialsDeducted=true` ⇒ สต๊อกที่ตัด = BOM ปัจจุบัน × qty ปัจจุบันเสมอ.
+- **สต๊อกติดลบได้** (by design — สร้างงานก่อนของเข้า / backorder). `minQty` = เกณฑ์เตือนใกล้หมดเท่านั้น.
+
+หน้าวัสดุ (`/materials`): ค้นหา, filter หมวด/ใกล้หมด, เพิ่ม/แก้/ลบ, **± ปรับ** (relative adjustDelta — ทางเดียวที่เปลี่ยน qty ตอนแก้ เพื่อกัน lost-update), อัปโหลด Excel. การลบวัสดุถูก block ถ้าถูกใช้ในงาน/รุ่น.
+
+### Length tracking (TUBE/ROD)
+
+วัสดุหน่วย **"เส้น" / "เมตร"** (`LENGTH_UNITS` ใน `src/lib/materials.ts`) เก็บความยาวต่อเส้น (mm):
+
+- ตาราง **`MaterialLength`** (materialId, lengthMm, qty) — จำนวนเส้นแยกตามความยาว. `Material.qty` = ผลรวมทุก bucket (จำนวนเส้นรวม) → logic นับชิ้นเดิมไม่กระทบ.
+- helper: `addPieces`, `removePiecesAtLength`, `syncMaterialBuckets` (จัดให้ Σbucket == qty หลัง count-only change; production deduct ตัดเส้นสั้นสุดก่อน; คืน → เข้า bucket `lengthMm=0` "ไม่ระบุ").
+- **บังคับระบุความยาว 3 จุด:** รับเข้าคลัง, ± ปรับ, เพิ่มวัสดุใหม่ (validate ทั้ง client + server).
+- แสดง: `7 เส้น · รวม 41.60 ม. · 6000×5, 5800×2 mm`.
+- ⚠️ ตัดสต๊อก production ยังนับเป็น "จำนวนเส้น" (BOM ไม่ระบุความยาวที่ตัด) → ตัดเส้นสั้นสุดก่อนเป็น assumption. ถ้าต้องตัดตามความยาวจริงต้องขยาย recipe ให้เก็บความยาว/ชิ้น.
+
+---
+
+## Receiving / Deliveries
+
+`/deliveries` (canReceiveStock). รับพัสดุเข้าคลัง + **รูปยืนยัน** (บังคับ).
+- รูปถูก compress client-side (max 1024px, jpeg 0.7), เก็บเป็น base64 ใน `Delivery.photo`, serve ผ่าน `/api/deliveries/[id]/photo` (lazy thumbnail, cache immutable).
+- เลือกวัสดุ + จำนวน → **บวกสต๊อก**. วัสดุ length-tracked ต้องใส่ความยาว/เส้น (mm) → `addPieces`.
+
+---
+
+## Products (recipe รุ่นกระบอก)
+
+`/products` (canFullEdit). ตั้งสูตรว่ารุ่นกระบอกใช้วัสดุอะไร/ชิ้น. ตอนสร้างงานเลือกรุ่น → prefill `item` + BOM ของงาน. ไม่มี FK กลับ (งาน copy recipe ตอนสร้างเท่านั้น). ลบรุ่นไม่กระทบงาน.
+
+---
+
+## Excel import
+
+**งาน** — ปุ่มในหน้า dashboard (`UploadExcel`). คอลัมน์ไทย/อังกฤษ: เลขที่เอกสาร, วันที่สั่งผลิต, เช็ค (TRUE=เสร็จ), Delivery time, ลูกค้า, รายการ, จำนวน, ผู้รับผิดชอบ, ETA Manual. ขาด field → default. → `POST /api/jobs/bulk`.
+
+**วัสดุ** — ปุ่มในหน้า materials (`UploadMaterialsExcel`). คอลัมน์: รหัส, ชื่อวัสดุ, หมวด, หน่วย, คงเหลือ, ขั้นต่ำ, ที่เก็บ, หมายเหตุ. ซ้ำ (code/name) → ข้าม + รายงาน. header ไม่ตรง → เตือน (ไม่เงียบ). → `POST /api/materials/bulk`.
+- ไฟล์ master TUBE/ROD 63 รายการถูก import แล้ว (จาก `materials-import.xlsx`, gitignored). `*.xlsx` อยู่ใน .gitignore.
+
+---
+
+## Schema (`prisma/schema.prisma`)
 
 ```
 User      id, username (unique), password (bcrypt), name, role
 Job       id, seq (unique), docNo (unique), orderDate, deliveryTime (auto),
           customer, item, qty, status, cancelled, notes,
-          rate, etaAuto (auto), etaManual,
-          startedAt, finishedAt,
-          assignedToId → User,
-          salesOwnerId → User (เซลคนที่รับผิดชอบ),
-          createdById → User
-JobLog    id, jobId, status, message, createdAt
+          rate, etaAuto (auto), etaManual, startedAt, finishedAt,
+          materialsDeducted (bool),
+          assignedToId, salesOwnerId, createdById → User
+JobLog        id, jobId, status, message, createdAt
+JobMaterial   id, jobId, materialId, qtyPerUnit   @@unique([jobId, materialId])   # BOM ของงาน
+Material      id, code (unique?), name, category, unit, qty, minQty, location, notes
+MaterialLength id, materialId, lengthMm, qty       @@unique([materialId, lengthMm]) # breakdown ความยาว
+Product       id, code (unique?), name (unique), notes              # รุ่นกระบอก
+ProductMaterial id, productId, materialId, qtyPerUnit @@unique([productId, materialId]) # recipe
+Delivery      id, title, note, photo (base64), qtyReceived, lengthMm, materialId, createdById
 ```
 
-**Status enum** (เก็บเป็น string): PENDING / IN_PROGRESS / PAUSED / QC / DONE / CANCELLED  
-Label/สีอยู่ใน `src/lib/eta.ts` (STATUS_LABEL, STATUS_COLOR)
+**Status** (string): PENDING / IN_PROGRESS / PAUSED / QC / DONE / CANCELLED — label/สีใน `src/lib/eta.ts`.
+**Material categories / units** — `src/lib/materials.ts` (MATERIAL_CATEGORIES, MATERIAL_UNITS, LENGTH_UNITS).
 
 ---
 
 ## Project layout
 
 ```
-prisma/
-  schema.prisma
-  seed.ts            # seed users + sample jobs
-  cleanup-users.ts   # one-off util
+prisma/  schema.prisma, seed.ts, cleanup-users.ts
 src/
   app/
-    page.tsx               # dashboard
-    login/page.tsx
-    admin/users/page.tsx   # OWNER only
-    jobs/new/page.tsx      # full form
-    jobs/[id]/page.tsx     # full form + log history
+    page.tsx                 # dashboard (JobTable + StatsSidebar)
+    login/  history/  materials/  deliveries/  products/    # pages (force-dynamic)
+    admin/users/page.tsx     # OWNER only
+    jobs/new, jobs/[id]      # JobForm
     api/
+      jobs/ (route, [id], bulk)
+      materials/ (route, [id], bulk)
+      products/ (route, [id])
+      deliveries/ (route, [id]/photo)
+      users/ (route, [id])
       auth/[...nextauth]/route.ts
-      jobs/route.ts        # GET list, POST create
-      jobs/[id]/route.ts   # GET, PATCH, DELETE
-      jobs/bulk/route.ts   # POST Excel bulk import
-      users/route.ts       # GET list, POST create (OWNER)
-      users/[id]/route.ts  # PATCH role/pw, DELETE (OWNER)
   components/
-    JobTable.tsx           # ตารางหลัก + inline add/edit + double-click + sort + filter
-    JobForm.tsx            # full form (legacy, ใช้ที่ /jobs/new + /jobs/[id])
-    StatsSidebar.tsx       # sidebar ซ้าย ภาพรวม + per-worker
-    EtaPopup.tsx           # popup หลัง save
-    UploadExcel.tsx        # ปุ่ม + modal upload Excel
-    UsersAdmin.tsx         # /admin/users UI
-    NavBar.tsx, Providers.tsx
+    JobTable, JobForm, EtaPopup, StatsSidebar, UploadExcel,
+    MaterialsTable, UploadMaterialsExcel, ProductsTable,
+    DeliveriesView, HistoryView, UsersAdmin, NavBar, Providers
   lib/
-    auth.ts                # NextAuth config + role helpers
-    prisma.ts              # singleton client
-    eta.ts                 # STATUSES, DELIVERY_OPTIONS, computeAutoEta (legacy)
-    scheduler.ts           # ⭐ Auto ETA queue logic
-    stats.ts               # computeOverall + computeWorkers
-  types/next-auth.d.ts     # extend Session.user.role
+    auth.ts        # NextAuth + role helpers
+    prisma.ts      # singleton
+    eta.ts         # STATUSES, labels, colors
+    scheduler.ts   # ⭐ ETA queue
+    stock.ts       # ⭐ reconcile / deduct / restore / length buckets
+    materials.ts   # categories, units, length helpers, formatters
+    stats.ts       # computeOverall + computeWorkers
+    history.ts     # computeDurations (เวลาต่อ status จาก JobLog)
 ```
 
 ---
 
 ## Deploy
 
-Auto: push to `main` → Vercel rebuild เอง (Git integration ต่อแล้ว ผ่าน `vercel git connect`).
+Auto: push to `main` → Vercel rebuild (Git integration). Manual fallback: `vercel --prod --yes` (team `kik0800269066-5722`).
 
-Manual (fallback): `vercel --prod --yes` จาก root ของ repo. Login team `kik0800269066-5722`.
+**`vercel.json`** pin `regions: ["sin1"]` ให้ function อยู่ติด DB (Singapore) — เคยช้าเพราะ function รัน US แต่ DB Singapore (ข้ามทวีป ~200-250ms/query).
 
-เช็คสถานะ deploy: `vercel ls` (ดูว่า deploy ล่าสุดตรงกับ push ล่าสุด) / `vercel inspect <url> --wait`.
+**Env vars (Vercel):** `DATABASE_URL` (Neon), `NEXTAUTH_SECRET` (≥32 char), `NEXTAUTH_URL`.
 
-**Env vars (Vercel):**
-- `DATABASE_URL` — Neon pooled connection string (sslmode=require)
-- `NEXTAUTH_SECRET` — random ≥32 char
-- `NEXTAUTH_URL` — `https://production-tracker-beige.vercel.app`
-
-**Schema change:**
-```powershell
-# แก้ prisma/schema.prisma แล้ว
-$env:DATABASE_URL="<neon-url>"
-npx prisma db push
-npx prisma generate
-git add -A; git commit -m "..."; git push
-```
-
-**Vercel logs:**
+เช็ค deploy ผ่าน GitHub deployments API:
 ```bash
-npx vercel logs --since 30m --level error --json
+gh api repos/OAKHEN1412/production-tracker/deployments --jq '.[0]'
+gh api repos/OAKHEN1412/production-tracker/deployments/<id>/statuses --jq '.[0]|{state,url:.environment_url}'
 ```
 
----
-
-## Excel upload
-
-- Template โหลดจากปุ่มในหน้า dashboard (modal upload)
-- คอลัมน์รองรับ (ภาษาไทยและ English): เลขที่เอกสาร, วันที่สั่งผลิต, **เช็ค** (TRUE=เสร็จ), Delivery time, ลูกค้า, รายการ, จำนวน, ผู้รับผิดชอบ (ชื่อตรงกับ user), ETA Manual
-- ไม่มี validation: ขาด field → เติม default (docNo ว่าง → `AUTO-<ts>-<i>`, qty ว่าง → 1, ฯลฯ)
-- หลัง insert → recompute ETAs
+**Schema change:** แก้ `schema.prisma` → `npx prisma db push` (ชี้ prod ได้, additive ปลอดภัย) → `npx prisma generate` → commit + push.
 
 ---
 
 ## Known issues / Gotchas
 
-1. **docNo unique** — สร้างซ้ำ → 409. ฟอร์มต้องใส่ unique value
-2. **เซล dropdown** — ดึงจาก user ที่ role = SALES. ถ้ายังไม่มีใน /admin/users ก็ไม่มี option
-3. **Prisma client lock บน Windows** — ตอน dev server รัน, `prisma generate` อาจ fail ด้วย EPERM. หยุด dev ก่อน
-4. **Working days** — hard-code skip ส-อา. ถ้ามีวันหยุดนักขัตฤกษ์ต้องเพิ่มเอง
-5. **NEXTAUTH_URL** — ถ้าเปลี่ยน Vercel alias ต้องอัพเดต env + redeploy
-6. **Connection pool** — Neon มี built-in pooler. ถ้า cold start ช้า ดู Vercel function logs
+1. **DB region** — DB อยู่ Singapore; function ต้อง `sin1` (ตั้งใน vercel.json). อย่าเปลี่ยน region ไม่ตรง DB.
+2. **Neon free tier auto-suspend** — DB หลับเมื่อ idle → request แรกหลังหยุดนานช้า (~0.5-2s). แก้: upgrade Neon.
+3. **Pooled connection** — `DATABASE_URL` ควรใช้ Neon `-pooler` host สำหรับ serverless concurrency.
+4. **สต๊อกติดลบได้** — by design (backorder). ไม่มี hard guard.
+5. **Length deduction** — production ตัดเส้นสั้นสุดก่อน (BOM ไม่ระบุความยาว). คืน → bucket "ไม่ระบุ".
+6. **seq / docNo unique** — สร้างพร้อมกัน 2 คนอาจชน seq → 500 (โอกาสต่ำ). docNo ซ้ำ → 409.
+7. **Excel "เช็ค" ว่าง** override status เป็น PENDING ถ้ามีทั้งคอลัมน์ status + เช็ค.
+8. **Material `test`** — qty -72 ค้างจากการเทส (ลบได้ถ้าไม่ถูกใช้).
+9. **Prisma EPERM บน Windows** — หยุด dev server ก่อน `prisma generate`.
+10. **NEXTAUTH_URL** — เปลี่ยน alias ต้องอัปเดต env + redeploy.
 
 ---
 
 ## Common dev tasks
 
-| งาน | คำสั่ง / ที่แก้ |
+| งาน | ที่แก้ |
 |---|---|
-| เพิ่ม status ใหม่ | `src/lib/eta.ts` STATUSES + STATUS_LABEL + STATUS_COLOR |
-| เปลี่ยน rate ETA | `src/lib/scheduler.ts` RATE_SAME / RATE_DIFF / RATE_UNASSIGNED |
-| เพิ่ม role | `src/lib/auth.ts` ROLES + helpers + `next-auth.d.ts` + DropDowns ใน UsersAdmin/JobTable/JobForm |
-| เพิ่ม field ใน Job | schema.prisma → `prisma db push` → zod schema ทั้ง POST/PATCH → Draft type → DraftFields → table column → popup |
-| Reset DB | `npx prisma db push --force-reset && npm run db:seed` (อย่าเผลอชี้ prod) |
-| สร้าง user batch | เขียน script เหมือน `prisma/seed.ts` |
+| เพิ่ม status | `lib/eta.ts` STATUSES + label + color |
+| เปลี่ยน rate ETA | `lib/scheduler.ts` RATE_* |
+| เพิ่ม role | `lib/auth.ts` ROLES + helpers + `next-auth.d.ts` + dropdowns (UsersAdmin/JobTable/JobForm) |
+| เพิ่ม field Job | schema → `db push` → zod POST/PATCH → Draft → DraftFields → column → popup |
+| เพิ่มหมวด/หน่วยวัสดุ | `lib/materials.ts` MATERIAL_CATEGORIES / MATERIAL_UNITS / LENGTH_UNITS |
+| แก้ logic ตัดสต๊อก | `lib/stock.ts` reconcileJobMaterials / addPieces / syncMaterialBuckets |
+| Reset DB | `npx prisma db push --force-reset && npm run db:seed` (อย่าชี้ prod) |
 
 ---
 
-## Roadmap / ไอเดียต่อ
+## Roadmap / ที่เหลือ-ไอเดียต่อ
 
-- WebSocket / SSE update ฝั่ง Sales realtime
-- กราฟ Gantt แสดงคิวต่อช่าง
-- Export Excel กลับ
-- แจ้งเตือนเกิน ETA (LINE Notify / email)
+- **ตัดสต๊อกตามความยาวจริง** — ขยาย recipe (ProductMaterial/JobMaterial) ให้เก็บความยาว/ชิ้น แทนนับเป็นเส้น
+- ประวัติการเคลื่อนไหวสต๊อก (stock movement log) + ใครปรับเมื่อไหร่
+- Export Excel กลับ (งาน / สต๊อก)
+- แจ้งเตือนใกล้หมด / เกิน ETA (LINE Notify / email)
 - วันหยุดนักขัตฤกษ์ใน ETA calc
-- ETA preview ก่อน save (เห็นก่อนกด ✓)
-- รายงาน performance ต่อช่างรายเดือน
+- กราฟ Gantt คิวต่อช่าง / รายงาน performance รายเดือน
+- realtime update ฝั่ง Sales (SSE)
+- ลบ material `test` ที่ค้าง
 
 ---
 
-## Contact / Account
+## Contact
 
 - Owner: tech3@automationcluster.com
-- GitHub: OAKHEN1412
-- Vercel team: kik0800269066-5722
+- GitHub: OAKHEN1412 · Vercel team: kik0800269066-5722
