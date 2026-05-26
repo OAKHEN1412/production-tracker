@@ -21,6 +21,8 @@ export default function BomEditor({
   hint?: React.ReactNode;
 }) {
   const inp = "border rounded px-2 py-1.5 w-full text-sm";
+  // Fixed-width number inputs must NOT carry w-full (it overrides the w-20/w-24).
+  const numInp = "border rounded px-2 py-1.5 text-sm text-center shrink-0";
   const unitOf = (id: string) => allMaterials.find((m) => m.id === id)?.unit ?? "";
   const add = () => onChange([...value, { materialId: "", qtyPerUnit: 1, cutLengthMm: 0 }]);
   const upd = (i: number, patch: Partial<MatRow>) =>
@@ -56,13 +58,13 @@ export default function BomEditor({
                 {lenTracked ? (
                   <>
                     <input type="number" min={0} step="any" placeholder="ยาว/หน่วย"
-                      className={inp + " w-24 text-center shrink-0"} value={m.cutLengthMm || ""}
+                      className={numInp + " w-24"} value={m.cutLengthMm || ""}
                       onChange={(e) => upd(i, { qtyPerUnit: 1, cutLengthMm: Number(e.target.value) })} />
                     <span className="text-xs text-gray-500 w-12 shrink-0">mm/ตัว</span>
                   </>
                 ) : (
                   <>
-                    <input type="number" min={0} step="any" className={inp + " w-20 text-center shrink-0"} value={m.qtyPerUnit}
+                    <input type="number" min={0} step="any" className={numInp + " w-20"} value={m.qtyPerUnit}
                       onChange={(e) => upd(i, { qtyPerUnit: Number(e.target.value) })} />
                     <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
                   </>
