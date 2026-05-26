@@ -95,6 +95,12 @@ export default function UploadMaterialsExcel() {
     }).filter((r) => r.name); // drop empty rows
 
     setRows(parsed);
+    if (parsed.length === 0) {
+      setResult(
+        'อ่านไม่เจอรายการ — เช็คว่าแถวแรกของไฟล์เป็นหัวคอลัมน์ (ต้องมีคอลัมน์ "ชื่อวัสดุ"). ' +
+          "ถ้าใช้ฟอร์มนับสต๊อกเดิมที่แถวแรกเป็นหัวเรื่อง ให้โหลด template แล้วกรอกใหม่"
+      );
+    }
     if (fileRef.current) fileRef.current.value = "";
   }
 
