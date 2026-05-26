@@ -12,6 +12,7 @@ export default async function MaterialsPage() {
 
   const materials = await prisma.material.findMany({
     orderBy: [{ category: "asc" }, { name: "asc" }],
+    include: { lengths: { orderBy: { lengthMm: "desc" } } },
   });
 
   const role = (session.user as any).role as string;

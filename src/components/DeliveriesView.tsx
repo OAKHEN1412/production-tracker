@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isLengthTracked } from "@/lib/materials";
 
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
 type Delivery = {
@@ -64,9 +65,13 @@ export default function DeliveriesView({
   const [note, setNote] = useState("");
   const [materialId, setMaterialId] = useState("");
   const [qty, setQty] = useState(0);
+  const [lengthMm, setLengthMm] = useState(0);
   const [photo, setPhoto] = useState("");
   const [busy, setBusy] = useState(false);
   const [zoom, setZoom] = useState<string | null>(null);
+
+  const selectedUnit = materials.find((m) => m.id === materialId)?.unit;
+  const lengthTracked = isLengthTracked(selectedUnit);
 
   const inp = "border rounded px-3 py-2 w-full text-sm";
 
@@ -83,6 +88,9 @@ export default function DeliveriesView({
   async function submit() {
     if (!title.trim()) { alert("ใส่ชื่อ/รายละเอียดพัสดุ"); return; }
     if (!photo) { alert("ต้องถ่าย/แนบรูปยืนยัน"); return; }
+    if (lengthTracked && Number(qty) > 0 && !(Number(lengthMm) > 0)) {
+      alert("ระบุความยาวต่อเส้น (mm)"); return;
+    }
     setBusy(true);
     const res = await fetch("/api/deliveries", {
       method: "POST",
@@ -91,6 +99,7 @@ export default function DeliveriesView({
         title, note: note || null, photo,
         materialId: materialId || null,
         qtyReceived: materialId ? Number(qty) : 0,
+        lengthMm: lengthTracked ? Number(lengthMm) : 0,
       }),
     });
     setBusy(false);
@@ -99,7 +108,7 @@ export default function DeliveriesView({
       alert("บันทึกไม่ได้: " + (typeof j.error === "string" ? j.error : JSON.stringify(j.error)));
       return;
     }
-    setTitle(""); setNote(""); setMaterialId(""); setQty(0); setPhoto("");
+    setTitle(""); setNote(""); setMaterialId(""); setQty(0); setLengthMm(0); setPhoto("");
     const fresh = await fetch("/api/deliveries").then((r) => r.json());
     setDeliveries(fresh);
     router.refresh();
@@ -126,11 +135,22 @@ export default function DeliveriesView({
               </select>
             </div>
             <div>
-              <div className="text-xs text-gray-600">จำนวนรับเข้า</div>
+              <div className="text-xs text-gray-600">จำนวนรับเข้า{lengthTracked ? " (เส้น)" : ""}</div>
               <input type="number" min={0} step="any" className={inp} value={qty}
                 disabled={!materialId}
                 onChange={(e) => setQty(Number(e.target.value))} />
             </div>
+            {lengthTracked && (
+              <div className="sm:col-span-2">
+                <div className="text-xs text-gray-600">ความยาวต่อเส้น (mm) *</div>
+                <input type="number" min={0} step="any" className={inp} value={lengthMm}
+                  placeholder="เช่น 6000"
+                  onChange={(e) => setLengthMm(Number(e.target.value))} />
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  วัสดุหน่วย "{selectedUnit}" — ระบุความยาวของแต่ละเส้นที่รับเข้า (เส้นยาว/สั้นแยกบันทึกได้)
+                </div>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <div className="text-xs text-gray-600">หมายเหตุ</div>
               <input className={inp} value={note} onChange={(e) => setNote(e.target.value)} />

@@ -1,6 +1,82 @@
 import { prisma } from "./prisma";
+import { isLengthTracked } from "./materials";
 
 type MatRow = { materialId: string; qtyPerUnit: number };
+
+// ── Length-tracked stock (TUBE/ROD) ────────────────────────────────────────
+// A length-tracked material keeps a breakdown of how many เส้น it has at each
+// length (MaterialLength rows, mm). Material.qty stays the total piece count
+// (sum of the breakdown), so existing count-based logic (low-stock, production
+// deduction) keeps working. lengthMm = 0 means "unknown length".
+
+// Add `count` pieces of length `lengthMm` to a material and bump its total qty.
+export async function addPieces(materialId: string, lengthMm: number, count: number) {
+  if (count <= 0) return;
+  const key = Number.isFinite(lengthMm) && lengthMm > 0 ? lengthMm : 0;
+  await prisma.$transaction([
+    prisma.materialLength.upsert({
+      where: { materialId_lengthMm: { materialId, lengthMm: key } },
+      create: { materialId, lengthMm: key, qty: count },
+      update: { qty: { increment: count } },
+    }),
+    prisma.material.update({ where: { id: materialId }, data: { qty: { increment: count } } }),
+  ]);
+}
+
+// Remove `count` pieces at a specific length (manual เบิกออก of known length).
+export async function removePiecesAtLength(materialId: string, lengthMm: number, count: number) {
+  if (count <= 0) return;
+  const key = Number.isFinite(lengthMm) && lengthMm > 0 ? lengthMm : 0;
+  const bucket = await prisma.materialLength.findUnique({
+    where: { materialId_lengthMm: { materialId, lengthMm: key } },
+  });
+  const remove = bucket ? Math.min(count, bucket.qty) : 0;
+  const ops: any[] = [];
+  if (bucket) {
+    if (bucket.qty - count <= 0) {
+      ops.push(prisma.materialLength.delete({ where: { id: bucket.id } }));
+    } else {
+      ops.push(prisma.materialLength.update({ where: { id: bucket.id }, data: { qty: { decrement: count } } }));
+    }
+  }
+  // Always reflect the requested change on the total (even if no bucket existed).
+  ops.push(prisma.material.update({ where: { id: materialId }, data: { qty: { decrement: count } } }));
+  await prisma.$transaction(ops);
+  return remove;
+}
+
+// Make the length breakdown match Material.qty after a count-only change
+// (production deduction / restore). Trims shortest pieces first when stock drops;
+// pads an "unknown length" (0) bucket when stock returns. No-op for non
+// length-tracked units so plain count materials never grow phantom buckets.
+export async function syncMaterialBuckets(materialId: string) {
+  const m = await prisma.material.findUnique({
+    where: { id: materialId },
+    include: { lengths: { orderBy: { lengthMm: "asc" } } },
+  });
+  if (!m || !isLengthTracked(m.unit)) return;
+
+  const sum = m.lengths.reduce((s, b) => s + b.qty, 0);
+  let diff = m.qty - sum; // >0 need to add (unknown), <0 need to trim
+  if (diff === 0) return;
+
+  const ops: any[] = [];
+  if (diff > 0) {
+    const zero = m.lengths.find((b) => b.lengthMm === 0);
+    if (zero) ops.push(prisma.materialLength.update({ where: { id: zero.id }, data: { qty: { increment: diff } } }));
+    else ops.push(prisma.materialLength.create({ data: { materialId, lengthMm: 0, qty: diff } }));
+  } else {
+    let toTrim = -diff;
+    for (const b of m.lengths) {
+      if (toTrim <= 0) break;
+      const take = Math.min(toTrim, b.qty);
+      if (take >= b.qty) ops.push(prisma.materialLength.delete({ where: { id: b.id } }));
+      else ops.push(prisma.materialLength.update({ where: { id: b.id }, data: { qty: { decrement: take } } }));
+      toTrim -= take;
+    }
+  }
+  if (ops.length) await prisma.$transaction(ops);
+}
 
 // Clean + de-dup a bill-of-materials list into a Map<materialId, qtyPerUnit>.
 // Drops empty materialIds and non-positive usage; last write wins on duplicate ids.
@@ -90,6 +166,13 @@ export async function reconcileJobMaterials(params: {
   }
 
   await prisma.$transaction(ops);
+
+  // Keep the per-length breakdown in step with the new total for any
+  // length-tracked material whose count just changed.
+  for (const id of ids) {
+    const delta = (newDeduction.get(id) ?? 0) - (oldDeduction.get(id) ?? 0);
+    if (delta !== 0) await syncMaterialBuckets(id);
+  }
 }
 
 // Put deducted stock back (e.g. when a job is deleted). No-op if never deducted.
@@ -110,6 +193,9 @@ export async function restoreDeductedMaterials(jobId: string) {
     ),
     prisma.job.update({ where: { id: jobId }, data: { materialsDeducted: false } }),
   ]);
+
+  // Sync length breakdowns for the restored materials (adds to "unknown" bucket).
+  for (const jm of job.materials) await syncMaterialBuckets(jm.materialId);
 }
 
 // Replace a product's (cylinder model) recipe. Pass [] to clear.

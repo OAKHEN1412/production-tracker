@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions, canEditMaterials } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isLengthTracked } from "@/lib/materials";
+import { syncMaterialBuckets } from "@/lib/stock";
 
 // Bulk-create materials from an uploaded sheet. Rows that duplicate an existing
 // (or earlier-in-batch) code/name are skipped and reported, so a re-upload only
@@ -48,19 +50,23 @@ export async function POST(req: NextRequest) {
       continue;
     }
     try {
+      const unit = String(raw.unit ?? "").trim() || "ชิ้น";
+      const qty = num(raw.qty);
       const mat = await prisma.material.create({
         data: {
           code,
           name,
           category: String(raw.category ?? "").trim() || "อื่นๆ",
-          unit: String(raw.unit ?? "").trim() || "ชิ้น",
-          qty: num(raw.qty),
+          unit,
+          qty,
           minQty: num(raw.minQty),
           location: String(raw.location ?? "").trim() || null,
           notes: String(raw.notes ?? "").trim() || null,
         },
         select: { id: true, name: true },
       });
+      // Length-tracked with an opening balance → record it as unknown-length pieces.
+      if (isLengthTracked(unit) && qty > 0) await syncMaterialBuckets(mat.id);
       created.push(mat);
       if (code) codes.add(code);
       names.add(name);

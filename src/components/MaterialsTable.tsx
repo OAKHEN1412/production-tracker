@@ -1,7 +1,15 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MATERIAL_CATEGORIES, MATERIAL_UNITS, isLowStock, type Material } from "@/lib/materials";
+import {
+  MATERIAL_CATEGORIES,
+  MATERIAL_UNITS,
+  isLowStock,
+  isLengthTracked,
+  formatLengthBreakdown,
+  totalLengthMm,
+  type Material,
+} from "@/lib/materials";
 import UploadMaterialsExcel from "./UploadMaterialsExcel";
 
 type Draft = {
@@ -10,13 +18,14 @@ type Draft = {
   category: string;
   unit: string;
   qty: number;
+  lengthMm: number;
   minQty: number;
   location: string;
   notes: string;
 };
 
 function emptyDraft(): Draft {
-  return { code: "", name: "", category: MATERIAL_CATEGORIES[0], unit: MATERIAL_UNITS[0], qty: 0, minQty: 0, location: "", notes: "" };
+  return { code: "", name: "", category: MATERIAL_CATEGORIES[0], unit: MATERIAL_UNITS[0], qty: 0, lengthMm: 0, minQty: 0, location: "", notes: "" };
 }
 function toDraft(m: Material): Draft {
   return {
@@ -25,6 +34,7 @@ function toDraft(m: Material): Draft {
     category: m.category,
     unit: m.unit,
     qty: m.qty,
+    lengthMm: 0,
     minQty: m.minQty,
     location: m.location ?? "",
     notes: m.notes ?? "",
@@ -39,7 +49,7 @@ function payload(d: Draft, withQty: boolean) {
     name: d.name,
     category: d.category,
     unit: d.unit,
-    ...(withQty ? { qty: Number(d.qty) } : {}),
+    ...(withQty ? { qty: Number(d.qty), lengthMm: Number(d.lengthMm) } : {}),
     minQty: Number(d.minQty),
     location: d.location || null,
     notes: d.notes || null,
@@ -131,18 +141,32 @@ export default function MaterialsTable({
   }
 
   async function adjust(m: Material) {
-    const raw = prompt(`ปรับสต๊อก "${m.name}" (คงเหลือ ${m.qty} ${m.unit})\nใส่จำนวน: บวก = รับเข้า, ลบ = เบิกออก (เช่น 10 หรือ -3)`);
+    const lenTracked = isLengthTracked(m.unit);
+    const raw = prompt(`ปรับสต๊อก "${m.name}" (คงเหลือ ${m.qty} ${m.unit})\nใส่จำนวน${lenTracked ? "เส้น" : ""}: บวก = รับเข้า, ลบ = เบิกออก (เช่น 10 หรือ -3)`);
     if (raw == null) return;
     const delta = Number(raw.trim());
     if (!Number.isFinite(delta) || delta === 0) return;
+
+    let adjustLengthMm: number | undefined;
+    if (lenTracked) {
+      const rawLen = prompt(`ความยาวต่อเส้น (mm) ของ ${delta > 0 ? "เส้นที่รับเข้า" : "เส้นที่เบิกออก"}\n(เช่น 6000)`);
+      if (rawLen == null) return;
+      adjustLengthMm = Number(rawLen.trim());
+      if (!(adjustLengthMm > 0)) { alert("ความยาวต้องมากกว่า 0"); return; }
+    }
+
     setBusyId(m.id);
     const res = await fetch(`/api/materials/${m.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ adjustDelta: delta }),
+      body: JSON.stringify({ adjustDelta: delta, ...(adjustLengthMm ? { adjustLengthMm } : {}) }),
     });
     setBusyId(null);
-    if (!res.ok) { alert("ปรับไม่ได้"); return; }
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(typeof j.error === "string" ? j.error : "ปรับไม่ได้");
+      return;
+    }
     await refresh();
   }
 
@@ -279,6 +303,12 @@ export default function MaterialsTable({
                   <td className="text-center font-semibold">
                     <span className={low ? "text-red-600" : ""}>{m.qty}</span>
                     {low && <span className="ml-1 text-xs text-red-500" title="ต่ำกว่าขั้นต่ำ">⚠</span>}
+                    {isLengthTracked(m.unit) && m.lengths && m.lengths.length > 0 && (
+                      <div className="text-[10px] text-gray-500 font-normal leading-tight mt-0.5">
+                        รวม {(totalLengthMm(m.lengths) / 1000).toFixed(2)} ม.
+                        <div className="text-gray-400">{formatLengthBreakdown(m.lengths)} mm</div>
+                      </div>
+                    )}
                   </td>
                   <td className="text-center text-xs text-gray-500">{m.minQty || "-"}</td>
                   <td className="text-xs">{m.unit}</td>
@@ -333,6 +363,12 @@ export default function MaterialsTable({
                 <div className="text-right">
                   <div className={`font-bold ${low ? "text-red-600" : ""}`}>{m.qty} {m.unit}</div>
                   {low && <div className="text-xs text-red-500">⚠ ใกล้หมด (ขั้นต่ำ {m.minQty})</div>}
+                  {isLengthTracked(m.unit) && m.lengths && m.lengths.length > 0 && (
+                    <div className="text-[10px] text-gray-500 leading-tight mt-0.5">
+                      รวม {(totalLengthMm(m.lengths) / 1000).toFixed(2)} ม.
+                      <div className="text-gray-400">{formatLengthBreakdown(m.lengths)} mm</div>
+                    </div>
+                  )}
                 </div>
               </div>
               {m.location && <div className="text-xs text-gray-500 mt-1">ที่เก็บ: {m.location}</div>}
@@ -385,11 +421,21 @@ function Fields({ draft, setDraft, compact, editing }: { draft: Draft; setDraft:
         </select>
       </div>
       <div>
-        <div className={lbl}>คงเหลือ{editing && " (ปรับผ่าน ± ปรับ)"}</div>
+        <div className={lbl}>
+          {isLengthTracked(draft.unit) ? "จำนวนเส้น" : "คงเหลือ"}{editing && " (ปรับผ่าน ± ปรับ)"}
+        </div>
         <input type="number" className={inp + (editing ? " bg-gray-100 text-gray-400 cursor-not-allowed" : "")}
           value={draft.qty} disabled={editing} readOnly={editing}
           onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} />
       </div>
+      {!editing && isLengthTracked(draft.unit) && (
+        <div>
+          <div className={lbl}>ความยาว/เส้น (mm){draft.qty > 0 ? " *" : ""}</div>
+          <input type="number" min={0} step="any" className={inp} value={draft.lengthMm}
+            placeholder="เช่น 6000"
+            onChange={(e) => setDraft({ ...draft, lengthMm: Number(e.target.value) })} />
+        </div>
+      )}
       <div>
         <div className={lbl}>ขั้นต่ำ (แจ้งเตือน)</div>
         <input type="number" className={inp} value={draft.minQty} onChange={(e) => setDraft({ ...draft, minQty: Number(e.target.value) })} />

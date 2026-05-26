@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions, canEditMaterials } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isLengthTracked } from "@/lib/materials";
+import { addPieces, removePiecesAtLength } from "@/lib/stock";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -15,6 +17,8 @@ const updateSchema = z.object({
   notes: z.string().nullable().optional(),
   // Relative stock adjustment (e.g. +10 received, -3 used). Applied on top of current qty.
   adjustDelta: z.coerce.number().optional(),
+  // Length (mm) the adjustment applies to, for length-tracked materials.
+  adjustLengthMm: z.coerce.number().nonnegative().optional(),
 });
 
 export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
@@ -40,6 +44,23 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
     if (dup) return NextResponse.json({ error: `รหัส "${code}" ซ้ำ` }, { status: 409 });
   }
 
+  const unit = d.unit?.trim() ?? existing.unit;
+  const lengthTracked = isLengthTracked(unit);
+
+  // For length-tracked materials, stock moves go through the length breakdown
+  // (addPieces / removePiecesAtLength keep Material.qty in sync) — never set an
+  // absolute qty here. A stock adjustment must name the length it applies to.
+  if (lengthTracked && d.adjustDelta !== undefined && d.adjustDelta !== 0) {
+    if (!((d.adjustLengthMm ?? 0) > 0)) {
+      return NextResponse.json(
+        { error: `ต้องระบุความยาว (mm) ของเส้นที่จะปรับ` },
+        { status: 400 }
+      );
+    }
+    if (d.adjustDelta > 0) await addPieces(ctx.params.id, d.adjustLengthMm!, d.adjustDelta);
+    else await removePiecesAtLength(ctx.params.id, d.adjustLengthMm!, -d.adjustDelta);
+  }
+
   const mat = await prisma.material.update({
     where: { id: ctx.params.id },
     data: {
@@ -47,9 +68,11 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       name: d.name?.trim() || undefined,
       category: d.category?.trim() ?? undefined,
       unit: d.unit?.trim() ?? undefined,
-      // adjustDelta wins over absolute qty when present
-      qty:
-        d.adjustDelta !== undefined
+      // Count-only path: adjustDelta wins over absolute qty. Length-tracked qty is
+      // managed above via the breakdown, so don't touch qty here for those.
+      qty: lengthTracked
+        ? undefined
+        : d.adjustDelta !== undefined
           ? { increment: d.adjustDelta }
           : d.qty ?? undefined,
       minQty: d.minQty ?? undefined,

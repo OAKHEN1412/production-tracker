@@ -76,6 +76,20 @@ model Material {
   usages        JobMaterial[]
   productUsages ProductMaterial[]
   deliveries    Delivery[]
+  lengths       MaterialLength[]
+}
+
+// On-hand breakdown of a length-tracked material (TUBE/ROD) by piece length.
+// qty = number of เส้น at lengthMm. Sum of qty across rows == Material.qty.
+// Length is stored in millimetres.
+model MaterialLength {
+  id         String   @id @default(cuid())
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  lengthMm   Float    // 0 = unknown length (e.g. stock restored from a cancelled job)
+  qty        Float    @default(0)
+
+  @@unique([materialId, lengthMm])
 }
 
 // A parcel received into the warehouse by the shipping team, with a photo
@@ -86,6 +100,7 @@ model Delivery {
   note        String?
   photo       String   // base64 data URL — confirmation image
   qtyReceived Float    @default(0)
+  lengthMm    Float    @default(0)  // length per เส้น received (mm); 0 if N/A
 
   materialId  String?
   material    Material? @relation(fields: [materialId], references: [id])
