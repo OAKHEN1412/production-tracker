@@ -25,22 +25,24 @@ export async function addPieces(materialId: string, lengthMm: number, count: num
 
 // Remove `count` pieces at a specific length (manual เบิกออก of known length).
 export async function removePiecesAtLength(materialId: string, lengthMm: number, count: number) {
-  if (count <= 0) return;
+  if (count <= 0) return 0;
   const key = Number.isFinite(lengthMm) && lengthMm > 0 ? lengthMm : 0;
   const bucket = await prisma.materialLength.findUnique({
     where: { materialId_lengthMm: { materialId, lengthMm: key } },
   });
+  // Can't issue more pieces than the named length actually holds. Clamp to what's
+  // there and decrement Material.qty by the SAME amount, so the total stays equal
+  // to the sum of the length breakdown (the invariant the rest of stock relies on).
+  // (Removing the full requested count regardless would drift qty below Σbuckets.)
   const remove = bucket ? Math.min(count, bucket.qty) : 0;
+  if (remove <= 0) return 0;
   const ops: any[] = [];
-  if (bucket) {
-    if (bucket.qty - count <= 0) {
-      ops.push(prisma.materialLength.delete({ where: { id: bucket.id } }));
-    } else {
-      ops.push(prisma.materialLength.update({ where: { id: bucket.id }, data: { qty: { decrement: count } } }));
-    }
+  if (remove >= bucket!.qty) {
+    ops.push(prisma.materialLength.delete({ where: { id: bucket!.id } }));
+  } else {
+    ops.push(prisma.materialLength.update({ where: { id: bucket!.id }, data: { qty: { decrement: remove } } }));
   }
-  // Always reflect the requested change on the total (even if no bucket existed).
-  ops.push(prisma.material.update({ where: { id: materialId }, data: { qty: { decrement: count } } }));
+  ops.push(prisma.material.update({ where: { id: materialId }, data: { qty: { decrement: remove } } }));
   await prisma.$transaction(ops);
   return remove;
 }
