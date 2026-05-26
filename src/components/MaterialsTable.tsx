@@ -29,13 +29,16 @@ function toDraft(m: Material): Draft {
     notes: m.notes ?? "",
   };
 }
-function payload(d: Draft) {
+// withQty=true only on create (set the opening balance). On edit we deliberately
+// omit qty: stock changes must go through "± ปรับ" (relative adjustDelta) or
+// receiving, so a slow edit can't clobber deductions made while the form was open.
+function payload(d: Draft, withQty: boolean) {
   return {
     code: d.code || null,
     name: d.name,
     category: d.category,
     unit: d.unit,
-    qty: Number(d.qty),
+    ...(withQty ? { qty: Number(d.qty) } : {}),
     minQty: Number(d.minQty),
     location: d.location || null,
     notes: d.notes || null,
@@ -94,7 +97,7 @@ export default function MaterialsTable({
     const res = await fetch("/api/materials", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload(draft)),
+      body: JSON.stringify(payload(draft, true)),
     });
     setBusyId(null);
     if (!res.ok) {
@@ -113,7 +116,7 @@ export default function MaterialsTable({
     const res = await fetch(`/api/materials/${editId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload(editDraft)),
+      body: JSON.stringify(payload(editDraft, false)),
     });
     setBusyId(null);
     if (!res.ok) {
@@ -238,8 +241,8 @@ export default function MaterialsTable({
                         {MATERIAL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </td>
-                    <td><input type="number" className={input + " text-center"} value={editDraft!.qty}
-                      onChange={(e) => setEditDraft({ ...editDraft!, qty: Number(e.target.value) })} /></td>
+                    <td><input type="number" disabled title="เปลี่ยนสต๊อกผ่านปุ่ม ± ปรับ"
+                      className={input + " text-center bg-gray-100 text-gray-400 cursor-not-allowed"} value={editDraft!.qty} readOnly /></td>
                     <td><input type="number" className={input + " text-center"} value={editDraft!.minQty}
                       onChange={(e) => setEditDraft({ ...editDraft!, minQty: Number(e.target.value) })} /></td>
                     <td>
@@ -306,7 +309,7 @@ export default function MaterialsTable({
           if (isEdit) {
             return (
               <div key={m.id} className="bg-white rounded shadow p-3 border-2 border-yellow-400 space-y-2">
-                <Fields draft={editDraft!} setDraft={(d) => setEditDraft(d)} compact />
+                <Fields draft={editDraft!} setDraft={(d) => setEditDraft(d)} compact editing />
                 <div className="flex gap-2 pt-2 border-t">
                   <button onClick={() => { setEditId(null); setEditDraft(null); }}
                     className="text-xs px-3 py-1.5 rounded border">ยกเลิก</button>
@@ -357,7 +360,7 @@ function Chip({ active, onClick, label, cls }: { active: boolean; onClick: () =>
   );
 }
 
-function Fields({ draft, setDraft, compact }: { draft: Draft; setDraft: (d: Draft) => void; compact?: boolean }) {
+function Fields({ draft, setDraft, compact, editing }: { draft: Draft; setDraft: (d: Draft) => void; compact?: boolean; editing?: boolean }) {
   const lbl = "text-xs text-gray-600";
   const inp = "border rounded px-2 py-1.5 w-full text-sm";
   const grid = compact ? "grid grid-cols-2 gap-2" : "grid grid-cols-2 sm:grid-cols-3 gap-3";
@@ -378,8 +381,10 @@ function Fields({ draft, setDraft, compact }: { draft: Draft; setDraft: (d: Draf
         </select>
       </div>
       <div>
-        <div className={lbl}>คงเหลือ</div>
-        <input type="number" className={inp} value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} />
+        <div className={lbl}>คงเหลือ{editing && " (ปรับผ่าน ± ปรับ)"}</div>
+        <input type="number" className={inp + (editing ? " bg-gray-100 text-gray-400 cursor-not-allowed" : "")}
+          value={draft.qty} disabled={editing} readOnly={editing}
+          onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} />
       </div>
       <div>
         <div className={lbl}>ขั้นต่ำ (แจ้งเตือน)</div>

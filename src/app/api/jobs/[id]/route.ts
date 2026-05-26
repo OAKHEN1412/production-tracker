@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recomputeWorkerQueues } from "@/lib/scheduler";
-import { setJobMaterials, deductMaterialsOnce, restoreDeductedMaterials } from "@/lib/stock";
+import { reconcileJobMaterials, restoreDeductedMaterials } from "@/lib/stock";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -56,7 +56,10 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
   }
   let d = parsed.data;
 
-  const existing = await prisma.job.findUnique({ where: { id: ctx.params.id } });
+  const existing = await prisma.job.findUnique({
+    where: { id: ctx.params.id },
+    include: { materials: true },
+  });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   // SUPPORT restrictions:
@@ -128,13 +131,34 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
     });
   }
 
-  // Update bill of materials if provided.
-  if (d.materials !== undefined) await setJobMaterials(updated.id, d.materials);
-
-  // Deduct stock once when materials get set, or when the job reaches DONE
-  // (guarded against double-deduct by Job.materialsDeducted).
-  if (d.materials !== undefined || updated.status === "DONE") {
-    await deductMaterialsOnce(updated.id);
+  // Reconcile material stock whenever the BOM or qty changed. Computes the delta
+  // against what was already deducted, so editing a job (new qty, or a material
+  // added / removed / changed) adjusts stock correctly instead of double- or
+  // never-deducting. No-op-ish when nothing material-related changed.
+  const qtyChanged = d.qty !== undefined && d.qty !== existing.qty;
+  // Safety net: deduct on first transition into DONE for jobs that have a BOM but
+  // were never deducted (e.g. legacy rows). reconcile is a no-op if already deducted.
+  const becameDone = updated.status === "DONE" && existing.status !== "DONE";
+  // A job is "cancelled" via the boolean flag OR the CANCELLED status. A cancelled
+  // job releases its stock; reactivating it deducts again.
+  const isCancelled = (status: string, cancelled: boolean) => cancelled || status === "CANCELLED";
+  const wasCancelled = isCancelled(existing.status, existing.cancelled);
+  const nowCancelled = isCancelled(updated.status, updated.cancelled);
+  const cancelChanged = nowCancelled !== wasCancelled;
+  if (d.materials !== undefined || qtyChanged || becameDone || cancelChanged) {
+    await reconcileJobMaterials({
+      jobId: updated.id,
+      oldQty: existing.qty,
+      oldDeducted: existing.materialsDeducted,
+      oldMaterials: existing.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit })),
+      newQty: updated.qty,
+      newMaterials:
+        d.materials !== undefined
+          ? d.materials
+          : existing.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit })),
+      cancelled: nowCancelled,
+      statusForLog: updated.status,
+    });
   }
 
   // Recompute queue ETAs of OLD and NEW assignee (and unassigned bucket)

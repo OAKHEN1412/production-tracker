@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recomputeWorkerQueues } from "@/lib/scheduler";
-import { setJobMaterials, deductMaterialsOnce } from "@/lib/stock";
+import { reconcileJobMaterials } from "@/lib/stock";
 import { z } from "zod";
 
 const materialsSchema = z
@@ -70,6 +70,13 @@ export async function POST(req: NextRequest) {
   const last = await prisma.job.findFirst({ orderBy: { seq: "desc" }, select: { seq: true } });
   const nextSeq = (last?.seq ?? 0) + 1;
 
+  const finalStatus = isSupport ? "PENDING" : data.status ?? "PENDING";
+  // Mirror PATCH's status side-effects so a job created directly as IN_PROGRESS/DONE
+  // gets its timestamps (otherwise "done this month" stats and history miss it).
+  const now = new Date();
+  const startedAt = finalStatus === "IN_PROGRESS" || finalStatus === "DONE" ? now : null;
+  const finishedAt = finalStatus === "DONE" ? now : null;
+
   const job = await prisma.job.create({
     data: {
       seq: nextSeq,
@@ -83,7 +90,9 @@ export async function POST(req: NextRequest) {
       etaManual: isSupport ? null : data.etaManual ? new Date(data.etaManual) : null,
       assignedToId: data.assignedToId ?? null,
       salesOwnerId: data.salesOwnerId ?? null,
-      status: isSupport ? "PENDING" : data.status ?? "PENDING",
+      status: finalStatus,
+      startedAt,
+      finishedAt,
       createdById: (session.user as any).id,
     },
   });
@@ -94,8 +103,16 @@ export async function POST(req: NextRequest) {
 
   // Bill of materials + deduct stock as soon as the job has materials.
   if (data.materials) {
-    await setJobMaterials(job.id, data.materials);
-    await deductMaterialsOnce(job.id);
+    await reconcileJobMaterials({
+      jobId: job.id,
+      oldQty: job.qty,
+      oldDeducted: false,
+      oldMaterials: [],
+      newQty: job.qty,
+      newMaterials: data.materials,
+      cancelled: finalStatus === "CANCELLED",
+      statusForLog: job.status,
+    });
   }
 
   // Recompute queue ETAs for affected workers (incl. unassigned bucket)

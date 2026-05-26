@@ -12,7 +12,7 @@ const createSchema = z.object({
   role: z.enum(["OWNER", "PRODUCTION", "SUPPORT", "SALES", "SHIPPING"]),
 });
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const role = (session.user as any).role;
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       name: p.data.name,
       role: p.data.role,
     },
-    select: { id: true, username: true, name: true, role: true },
+    select: { id: true, username: true, name: true, role: true, createdAt: true },
   });
   return NextResponse.json(user, { status: 201 });
 }

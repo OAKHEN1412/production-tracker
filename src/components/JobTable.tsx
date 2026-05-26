@@ -411,7 +411,7 @@ export default function JobTable({
       {adding && canEdit && (
         <div className="bg-white p-4 rounded shadow border-2 border-green-400">
           <div className="font-semibold mb-3 text-sm">+ งานใหม่</div>
-          <DraftFields draft={draft} setDraft={setDraft} users={users} salesUsers={salesUsers} products={products} />
+          <DraftFields draft={draft} setDraft={setDraft} users={users} salesUsers={salesUsers} products={products} canSetStatus={!isSupport} />
           <div className="flex gap-2 mt-3 justify-end">
             <button onClick={() => { setAdding(false); setDraft(emptyDraft()); }}
               className="px-4 py-1.5 text-sm border rounded">ยกเลิก</button>
@@ -478,13 +478,23 @@ export default function JobTable({
                       </select>
                     </td>
                     <td>
-                      <select className={input} value={editDraft!.status}
-                        onChange={(e) => setEditDraft({ ...editDraft!, status: e.target.value as Status })}>
-                        {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                      </select>
+                      {isSupport ? (
+                        <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${STATUS_COLOR[editDraft!.status]}`}>
+                          {STATUS_LABEL[editDraft!.status]}
+                        </span>
+                      ) : (
+                        <select className={input} value={editDraft!.status}
+                          onChange={(e) => setEditDraft({ ...editDraft!, status: e.target.value as Status })}>
+                          {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                        </select>
+                      )}
                     </td>
-                    <td><input type="date" className={input} value={editDraft!.etaManual}
-                      onChange={(e) => setEditDraft({ ...editDraft!, etaManual: e.target.value })} /></td>
+                    <td>{isSupport ? (
+                      <span className="text-xs text-gray-400">{editDraft!.etaManual || "auto"}</span>
+                    ) : (
+                      <input type="date" className={input} value={editDraft!.etaManual}
+                        onChange={(e) => setEditDraft({ ...editDraft!, etaManual: e.target.value })} />
+                    )}</td>
                     <td className="text-xs text-gray-400">auto</td>
                     <td className="text-right whitespace-nowrap">
                       <button onClick={saveEdit} disabled={busyId === j.id}
@@ -583,7 +593,7 @@ export default function JobTable({
             return (
               <div key={j.id} className="bg-white rounded shadow p-3 border-2 border-yellow-400 space-y-2">
                 <div className="text-xs text-gray-500 font-mono">#{j.seq} กำลังแก้ไข</div>
-                <DraftFields draft={editDraft!} setDraft={(d) => setEditDraft(d)} users={users} salesUsers={salesUsers} compact />
+                <DraftFields draft={editDraft!} setDraft={(d) => setEditDraft(d)} users={users} salesUsers={salesUsers} compact canSetStatus={!isSupport} />
                 <div className="flex gap-2 pt-2 border-t flex-wrap">
                   <button onClick={cancelEdit}
                     className="text-xs px-3 py-1.5 rounded border">ยกเลิก</button>
@@ -712,6 +722,7 @@ function DraftFields({
   salesUsers = [],
   products = [],
   compact,
+  canSetStatus = true,
 }: {
   draft: Draft;
   setDraft: (d: Draft) => void;
@@ -719,6 +730,8 @@ function DraftFields({
   salesUsers?: User[];
   products?: ProductOpt[];
   compact?: boolean;
+  // SUPPORT can't set status/ETA (server ignores them) — hide so the controls aren't misleading.
+  canSetStatus?: boolean;
 }) {
   const lbl = "text-xs text-gray-600";
   const inp = "border rounded px-2 py-1.5 w-full text-sm";
@@ -787,18 +800,22 @@ function DraftFields({
           {salesUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
       </div>
-      <div>
-        <div className={lbl}>สถานะ</div>
-        <select className={inp} value={draft.status}
-          onChange={(e) => setDraft({ ...draft, status: e.target.value as Status })}>
-          {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-        </select>
-      </div>
-      <div>
-        <div className={lbl}>ETA Manual</div>
-        <input type="date" className={inp} value={draft.etaManual}
-          onChange={(e) => setDraft({ ...draft, etaManual: e.target.value })} />
-      </div>
+      {canSetStatus && (
+        <div>
+          <div className={lbl}>สถานะ</div>
+          <select className={inp} value={draft.status}
+            onChange={(e) => setDraft({ ...draft, status: e.target.value as Status })}>
+            {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+          </select>
+        </div>
+      )}
+      {canSetStatus && (
+        <div>
+          <div className={lbl}>ETA Manual</div>
+          <input type="date" className={inp} value={draft.etaManual}
+            onChange={(e) => setDraft({ ...draft, etaManual: e.target.value })} />
+        </div>
+      )}
     </div>
   );
 }

@@ -65,10 +65,32 @@ export async function DELETE(_req: NextRequest, ctx: { params: { id: string } })
       return NextResponse.json({ error: "ห้ามลบ OWNER คนสุดท้าย" }, { status: 400 });
     }
   }
-  // Unlink jobs (assignedTo) before delete
+
+  // createdById (jobs) and Delivery.createdById are required FKs with no cascade,
+  // so deleting a user who created either would throw a raw FK error (500).
+  // Block with a clear message instead.
+  const [jobsCreated, deliveries] = await Promise.all([
+    prisma.job.count({ where: { createdById: target.id } }),
+    prisma.delivery.count({ where: { createdById: target.id } }),
+  ]);
+  if (jobsCreated > 0 || deliveries > 0) {
+    const parts = [];
+    if (jobsCreated > 0) parts.push(`สร้างงานไว้ ${jobsCreated} งาน`);
+    if (deliveries > 0) parts.push(`รับของเข้าคลัง ${deliveries} รายการ`);
+    return NextResponse.json(
+      { error: `ลบไม่ได้ — ผู้ใช้นี้${parts.join(" และ ")} (ข้อมูลผูกอยู่)` },
+      { status: 409 }
+    );
+  }
+
+  // Unlink optional relations (assignedTo / salesOwner) before delete.
   await prisma.job.updateMany({
     where: { assignedToId: target.id },
     data: { assignedToId: null },
+  });
+  await prisma.job.updateMany({
+    where: { salesOwnerId: target.id },
+    data: { salesOwnerId: null },
   });
   await prisma.user.delete({ where: { id: target.id } });
   return NextResponse.json({ ok: true });

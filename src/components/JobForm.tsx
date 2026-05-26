@@ -41,12 +41,15 @@ export default function JobForm({
   allMaterials = [],
   products = [],
   initial,
+  canSetStatus = true,
 }: {
   users: User[];
   salesUsers?: User[];
   allMaterials?: MaterialOpt[];
   products?: ProductOpt[];
   initial?: Initial;
+  // SUPPORT can't set status/ETA (server forces PENDING / null) — hide those fields.
+  canSetStatus?: boolean;
 }) {
   const router = useRouter();
   const editing = !!initial?.id;
@@ -186,21 +189,25 @@ export default function JobForm({
           ))}
         </select>
       </div>
-      <div>
-        <div className={label}>สถานะ</div>
-        <select className={input} value={f.status}
-          onChange={(e) => setF({ ...f, status: e.target.value as Status })}>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-          ))}
-        </select>
-      </div>
+      {canSetStatus && (
+        <div>
+          <div className={label}>สถานะ</div>
+          <select className={input} value={f.status}
+            onChange={(e) => setF({ ...f, status: e.target.value as Status })}>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
-      <div className="sm:col-span-2">
-        <div className={label}>ETA Manual (กำหนดเอง)</div>
-        <input type="date" className={input} value={f.etaManual}
-          onChange={(e) => setF({ ...f, etaManual: e.target.value })} />
-      </div>
+      {canSetStatus && (
+        <div className="sm:col-span-2">
+          <div className={label}>ETA Manual (กำหนดเอง)</div>
+          <input type="date" className={input} value={f.etaManual}
+            onChange={(e) => setF({ ...f, etaManual: e.target.value })} />
+        </div>
+      )}
 
       {/* Bill of materials */}
       <div className="sm:col-span-2 border-t pt-3">

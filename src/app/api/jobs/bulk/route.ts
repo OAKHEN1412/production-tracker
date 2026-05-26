@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
       const job = await prisma.job.create({
         data: {
-          seq: nextSeq++,
+          seq: nextSeq,
           docNo,
           orderDate: parseDate(raw.orderDate),
           deliveryTime: String(raw.deliveryTime ?? "").trim() || "-",
@@ -66,6 +66,9 @@ export async function POST(req: NextRequest) {
           createdById: (session.user as any).id,
         },
       });
+      // Only consume the seq number once the row actually inserted, so a failed
+      // row (e.g. duplicate docNo) doesn't leave a gap in the sequence.
+      nextSeq++;
       created.push(job);
     } catch (e: any) {
       errors.push({ row: i + 1, error: e?.message ?? "unknown" });
