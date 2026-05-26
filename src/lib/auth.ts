@@ -78,3 +78,13 @@ export function canFullEdit(role?: string) {
 export function canReceiveStock(role?: string) {
   return role === "OWNER" || role === "PRODUCTION" || role === "SHIPPING";
 }
+// Who can manage the materials master/stock (add / edit / adjust / import / delete).
+// Warehouse (SHIPPING) is included alongside production roles.
+export function canEditMaterials(role?: string) {
+  return (
+    role === "OWNER" ||
+    role === "PRODUCTION" ||
+    role === "SUPPORT" ||
+    role === "SHIPPING"
+  );
+}

@@ -1,5 +1,5 @@
 import { getServerSession } from "next-auth";
-import { authOptions, canCreateJob } from "@/lib/auth";
+import { authOptions, canEditMaterials } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import MaterialsTable from "@/components/MaterialsTable";
@@ -15,7 +15,7 @@ export default async function MaterialsPage() {
   });
 
   const role = (session.user as any).role as string;
-  const canEdit = canCreateJob(role);
+  const canEdit = canEditMaterials(role);
 
   return (
     <div>

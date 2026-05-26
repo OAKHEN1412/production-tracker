@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, canCreateJob } from "@/lib/auth";
+import { authOptions, canEditMaterials } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // Bulk-create materials from an uploaded sheet. Rows that duplicate an existing
@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!canCreateJob((session.user as any).role)) {
+  if (!canEditMaterials((session.user as any).role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
