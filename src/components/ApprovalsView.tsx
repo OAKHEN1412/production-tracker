@@ -1,10 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { isLengthTracked } from "@/lib/materials";
+import BomEditor, { type MatRow } from "./BomEditor";
 
 type User = { id: string; name: string; username: string };
-type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
 type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
 
@@ -72,26 +71,14 @@ function RequestCard({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  function unitOf(id: string) {
-    return allMaterials.find((m) => m.id === id)?.unit ?? "";
-  }
   function applyProduct(id: string) {
     const p = products.find((x) => x.id === id);
     if (!p) return;
     setItem(p.code || p.name);
     setMats(p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })));
   }
-  function addMat() {
-    setMats([...mats, { materialId: "", qtyPerUnit: 1, cutLengthMm: 0 }]);
-  }
-  function updateMat(i: number, patch: Partial<MatRow>) {
-    setMats(mats.map((m, idx) => (idx === i ? { ...m, ...patch } : m)));
-  }
-  function removeMat(i: number) {
-    setMats(mats.filter((_, idx) => idx !== i));
-  }
 
-  async function patch(body: any, okMsg?: string) {
+  async function patch(body: any) {
     setBusy(true);
     setErr("");
     const res = await fetch(`/api/jobs/${job.id}`, {
@@ -182,53 +169,9 @@ function RequestCard({
 
       {/* Bill of materials */}
       <div className="border-t pt-2">
-        <div className="flex items-center justify-between mb-1">
-          <div className={lbl}>วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกเมื่ออนุมัติ</div>
-          {allMaterials.length > 0 && (
-            <button type="button" onClick={addMat}
-              className="text-xs text-blue-600 hover:underline whitespace-nowrap">+ เพิ่มวัสดุ</button>
-          )}
-        </div>
-        {allMaterials.length === 0 ? (
-          <div className="text-xs text-gray-400">ยังไม่มีวัสดุในสต๊อก</div>
-        ) : mats.length === 0 ? (
-          <div className="text-xs text-gray-400">ยังไม่ได้ระบุวัสดุ</div>
-        ) : (
-          <div className="space-y-2">
-            {mats.map((m, i) => {
-              const lenTracked = isLengthTracked(unitOf(m.materialId));
-              return (
-              <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
-                <select className={inp + " flex-1 basis-full sm:basis-0 min-w-[11rem]"} value={m.materialId}
-                  onChange={(e) => updateMat(i, { materialId: e.target.value, qtyPerUnit: 1, cutLengthMm: 0 })}>
-                  <option value="">- เลือกวัสดุ -</option>
-                  {allMaterials.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.code ? `[${opt.code}] ` : ""}{opt.name}</option>
-                  ))}
-                </select>
-                {lenTracked ? (
-                  <>
-                    <input type="number" min={0} step="any" placeholder="ยาว/หน่วย"
-                      className={inp + " w-24 text-center shrink-0"}
-                      value={m.cutLengthMm || ""}
-                      onChange={(e) => updateMat(i, { qtyPerUnit: 1, cutLengthMm: Number(e.target.value) })} />
-                    <span className="text-xs text-gray-500 w-12 shrink-0">mm/ตัว</span>
-                  </>
-                ) : (
-                  <>
-                    <input type="number" min={0} step="any" className={inp + " w-20 text-center shrink-0"}
-                      value={m.qtyPerUnit}
-                      onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
-                    <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
-                  </>
-                )}
-                <button type="button" onClick={() => removeMat(i)}
-                  className="text-red-600 text-sm px-2 shrink-0">✕</button>
-              </div>
-            );})}
-            <div className="text-xs text-gray-400">ตัดความยาว/หน่วย × {Number(qty) || 0} ชิ้น</div>
-          </div>
-        )}
+        <BomEditor value={mats} onChange={setMats} allMaterials={allMaterials}
+          label="วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกเมื่ออนุมัติ"
+          hint={`ตัดจริง × ${Number(qty) || 0} ชิ้น · วัสดุเส้น = ความยาวตัด/หน่วย`} />
       </div>
 
       {err && <div className="text-red-600 text-sm mt-2">{err}</div>}

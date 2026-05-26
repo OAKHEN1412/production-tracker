@@ -34,10 +34,7 @@ export default function NavBar() {
   const links: NavLink[] = [{ href: "/", label: "Dashboard" }];
   if (canApprove) links.push({ href: "/approvals", label: "รออนุมัติ", cls: "text-amber-700", badge: pendingApproval });
   if (seesHistory) links.push({ href: "/history", label: "ประวัติการผลิต" });
-  if (canWarehouse) {
-    links.push({ href: "/materials", label: "สต๊อกวัสดุ" });
-    links.push({ href: "/deliveries", label: "รับเข้าคลัง" });
-  }
+  if (canWarehouse) links.push({ href: "/warehouse", label: "คลัง" });
   if (canRecipe) links.push({ href: "/products", label: "รุ่นกระบอก" });
   if (canCreate) links.push({ href: "/jobs/new", label: "+ งานใหม่", cls: "text-blue-600" });
   if (role === "OWNER") links.push({ href: "/admin/users", label: "จัดการผู้ใช้", cls: "text-purple-700" });

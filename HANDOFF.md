@@ -44,7 +44,7 @@ npm run dev
 |---|---|
 | **OWNER** | ทุกอย่าง + จัดการ user ที่ `/admin/users` |
 | **PRODUCTION** | สร้าง/แก้/ลบงาน, เปลี่ยน status, override ETA, จัดการวัสดุ, รับเข้าคลัง, recipe รุ่นกระบอก, **อนุมัติคำขอ SUPPORT** (`/approvals`) |
-| **SUPPORT** | สร้าง**คำขอ**งาน (→ status `WAITING_APPROVAL`) + แก้/ลบเฉพาะของตัวเอง. **ไม่ตั้ง** ช่าง/วัสดุ/รุ่น/status/ETA (PRODUCTION กรอกตอน approve). จัดการวัสดุ (server ยังอนุญาต แต่ nav ซ่อน) |
+| **SUPPORT** | สร้าง**คำขอ**งาน (→ status `WAITING_APPROVAL`) + แก้/ลบเฉพาะของตัวเอง. **ไม่ตั้ง** ช่าง/วัสดุ/รุ่น/status/ETA (PRODUCTION กรอกตอน approve). อ่านอย่างเดียวบนวัสดุ/รุ่น |
 | **SHIPPING** | รับเข้าคลัง + จัดการสต๊อกวัสดุ (ไม่ยุ่งงานผลิต/recipe/user) |
 | **SALES** | read-only |
 
@@ -52,11 +52,13 @@ Helpers ใน `src/lib/auth.ts`:
 - `canCreateJob` = OWNER / PRODUCTION / SUPPORT
 - `canFullEdit` = OWNER / PRODUCTION (ใช้กับ products/recipe)
 - `canReceiveStock` = OWNER / PRODUCTION / SHIPPING (รับเข้าคลัง)
-- `canEditMaterials` = OWNER / PRODUCTION / SUPPORT / SHIPPING (จัดการวัสดุ)
+- `canEditMaterials` = OWNER / PRODUCTION / SHIPPING (จัดการวัสดุ — SUPPORT อ่านอย่างเดียว)
 
 ทุก API route เช็ค role; page ส่ง `canEdit`/`canReceive` ลง component เพื่อซ่อนปุ่ม. SUPPORT ที่เปิดฟอร์มงานจะไม่เห็นช่อง ช่าง/รุ่น/วัสดุ/status/ETA (server ignore อยู่แล้ว — ดู PATCH `jobs/[id]` strip `assignedToId`+`materials` สำหรับ SUPPORT).
 
-**Nav แสดงตาม role** (`NavBar.tsx`): OWNER เห็นทุกเมนู; PRODUCTION = Dashboard·รออนุมัติ·ประวัติ·คลัง·รุ่น·งานใหม่; SUPPORT = Dashboard·ประวัติ·งานใหม่; SHIPPING = Dashboard·สต๊อก·รับเข้าคลัง; SALES = Dashboard·ประวัติ. ลิงก์ "รออนุมัติ" มี badge นับจาก `/api/jobs/pending-approval`.
+**Nav แสดงตาม role** (`NavBar.tsx`): OWNER เห็นทุกเมนู; PRODUCTION = Dashboard·รออนุมัติ·ประวัติ·คลัง·รุ่น·งานใหม่; SUPPORT = Dashboard·ประวัติ·งานใหม่; SHIPPING = Dashboard·คลัง; SALES = Dashboard·ประวัติ. ลิงก์ "รออนุมัติ" มี badge นับจาก `/api/jobs/pending-approval`.
+
+**คลัง** = หน้าเดียว `/warehouse` (tab สต๊อกวัสดุ + รับเข้าคลัง, `WarehouseTabs`). `/materials`→redirect `/warehouse`, `/deliveries`→`/warehouse?tab=receive`. BOM editor ใช้ component กลาง `BomEditor` (ProductsTable/JobForm/ApprovalsView ใช้ร่วม — กัน drift).
 
 ### Approval workflow (SUPPORT → PRODUCTION)
 
@@ -166,7 +168,8 @@ prisma/  schema.prisma, seed.ts, cleanup-users.ts
 src/
   app/
     page.tsx                 # dashboard (JobTable + StatsSidebar)
-    login/  history/  materials/  deliveries/  products/    # pages (force-dynamic)
+    login/  history/  products/  warehouse/    # pages (force-dynamic)
+    materials/ deliveries/            # redirect → /warehouse (เก็บ link เก่า)
     approvals/page.tsx       # PRODUCTION/OWNER อนุมัติคำขอ SUPPORT
     admin/users/page.tsx     # OWNER only
     jobs/new, jobs/[id]      # JobForm
@@ -181,7 +184,7 @@ src/
     JobTable, JobForm, EtaPopup, StatsSidebar, UploadExcel,
     MaterialsTable, UploadMaterialsExcel, ProductsTable,
     DeliveriesView, HistoryView, UsersAdmin, NavBar, Providers,
-    ApprovalsView
+    ApprovalsView, WarehouseTabs, BomEditor
   lib/
     auth.ts        # NextAuth + role helpers
     prisma.ts      # singleton

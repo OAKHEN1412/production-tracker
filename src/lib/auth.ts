@@ -79,12 +79,8 @@ export function canReceiveStock(role?: string) {
   return role === "OWNER" || role === "PRODUCTION" || role === "SHIPPING";
 }
 // Who can manage the materials master/stock (add / edit / adjust / import / delete).
-// Warehouse (SHIPPING) is included alongside production roles.
+// Production + warehouse (SHIPPING). SUPPORT only files job requests — materials
+// belong to PRODUCTION, so SUPPORT is read-only on stock.
 export function canEditMaterials(role?: string) {
-  return (
-    role === "OWNER" ||
-    role === "PRODUCTION" ||
-    role === "SUPPORT" ||
-    role === "SHIPPING"
-  );
+  return role === "OWNER" || role === "PRODUCTION" || role === "SHIPPING";
 }

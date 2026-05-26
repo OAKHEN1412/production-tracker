@@ -2,11 +2,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { STATUSES, STATUS_LABEL, DELIVERY_OPTIONS, type Status } from "@/lib/eta";
-import { isLengthTracked } from "@/lib/materials";
+import BomEditor, { type MatRow } from "./BomEditor";
 
 type User = { id: string; name: string; username: string };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
-type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
 type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
 
 type Initial = {
@@ -126,19 +125,6 @@ export default function JobForm({
     setF((prev) => ({ ...prev, item: p.code || p.name }));
     setMats(p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })));
   }
-  function unitOf(id: string) {
-    return allMaterials.find((m) => m.id === id)?.unit ?? "";
-  }
-  function addMat() {
-    setMats([...mats, { materialId: "", qtyPerUnit: 1, cutLengthMm: 0 }]);
-  }
-  function updateMat(i: number, patch: Partial<MatRow>) {
-    setMats(mats.map((m, idx) => (idx === i ? { ...m, ...patch } : m)));
-  }
-  function removeMat(i: number) {
-    setMats(mats.filter((_, idx) => idx !== i));
-  }
-
   const input = "border rounded px-3 py-2 w-full text-sm";
   const label = "text-xs text-gray-600";
 
@@ -228,57 +214,9 @@ export default function JobForm({
             </select>
           </div>
         )}
-        <div className="flex items-center justify-between mb-1">
-          <div className={label}>วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกทันทีเมื่อบันทึกงาน</div>
-          {allMaterials.length > 0 && (
-            <button type="button" onClick={addMat}
-              className="text-xs text-blue-600 hover:underline whitespace-nowrap">+ เพิ่มวัสดุ</button>
-          )}
-        </div>
-        {allMaterials.length === 0 ? (
-          <div className="text-xs text-gray-400">ยังไม่มีวัสดุในสต๊อก — เพิ่มที่หน้า “สต๊อกวัสดุ” ก่อน</div>
-        ) : mats.length === 0 ? (
-          <div className="text-xs text-gray-400">ยังไม่ได้ระบุวัสดุ</div>
-        ) : (
-          <div className="space-y-2">
-            {mats.map((m, i) => {
-              const lenTracked = isLengthTracked(unitOf(m.materialId));
-              return (
-              <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
-                <select className={input + " flex-1 basis-full sm:basis-0 min-w-[11rem]"} value={m.materialId}
-                  onChange={(e) => updateMat(i, { materialId: e.target.value, qtyPerUnit: 1, cutLengthMm: 0 })}>
-                  <option value="">- เลือกวัสดุ -</option>
-                  {allMaterials.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.code ? `[${opt.code}] ` : ""}{opt.name}
-                    </option>
-                  ))}
-                </select>
-                {lenTracked ? (
-                  <>
-                    <input type="number" min={0} step="any" placeholder="ยาว/หน่วย"
-                      className={input + " w-24 text-center shrink-0"}
-                      value={m.cutLengthMm || ""}
-                      onChange={(e) => updateMat(i, { qtyPerUnit: 1, cutLengthMm: Number(e.target.value) })} />
-                    <span className="text-xs text-gray-500 w-12 shrink-0">mm/ตัว</span>
-                  </>
-                ) : (
-                  <>
-                    <input type="number" min={0} step="any" className={input + " w-20 text-center shrink-0"}
-                      value={m.qtyPerUnit}
-                      onChange={(e) => updateMat(i, { qtyPerUnit: Number(e.target.value) })} />
-                    <span className="text-xs text-gray-500 w-10 shrink-0">{unitOf(m.materialId)}</span>
-                  </>
-                )}
-                <button type="button" onClick={() => removeMat(i)}
-                  className="text-red-600 text-sm px-2 shrink-0">✕</button>
-              </div>
-            );})}
-            <div className="text-xs text-gray-400">
-              ตัดจริง = จำนวนต่อชิ้น × จำนวนผลิต ({Number(f.qty) || 0} ชิ้น)
-            </div>
-          </div>
-        )}
+        <BomEditor value={mats} onChange={setMats} allMaterials={allMaterials}
+          label="วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกทันทีเมื่อบันทึกงาน"
+          hint={`ตัดจริง = ต่อชิ้น × จำนวนผลิต (${Number(f.qty) || 0} ชิ้น) · วัสดุเส้น = ความยาวตัด/หน่วย`} />
       </div>
       )}
 
