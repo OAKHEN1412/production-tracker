@@ -275,9 +275,9 @@ export default function JobTable({
     const created = await res.json();
     setAdding(false);
     setDraft(emptyDraft());
+    // router.refresh() re-runs the page query and feeds fresh jobs back via the
+    // `initial` prop (synced by the useEffect) — no need for a second /api/jobs GET.
     router.refresh();
-    const fresh = await fetch("/api/jobs").then((r) => r.json());
-    setJobs(fresh);
     setPopup({ job: created, mode: "created" });
   }
 
@@ -308,8 +308,6 @@ export default function JobTable({
     setEditId(null);
     setEditDraft(null);
     router.refresh();
-    const fresh = await fetch("/api/jobs").then((r) => r.json());
-    setJobs(fresh);
     if (etaChanged) setPopup({ job: updated, mode: "updated" });
   }
 
@@ -325,9 +323,8 @@ export default function JobTable({
       alert("อัปเดตไม่ได้");
       return;
     }
-    // Re-fetch: status change recomputes the whole queue's ETA + delivery.
-    const fresh = await fetch("/api/jobs").then((r) => r.json());
-    setJobs(fresh);
+    // Status change recomputes the whole queue's ETA + delivery server-side;
+    // router.refresh() pulls the recomputed list back via props.
     router.refresh();
   }
 
@@ -340,9 +337,8 @@ export default function JobTable({
       alert("ลบไม่ได้");
       return;
     }
-    // Re-fetch: delete recomputes the remaining queue's ETA + delivery.
-    const fresh = await fetch("/api/jobs").then((r) => r.json());
-    setJobs(fresh);
+    // Delete recomputes the remaining queue's ETA + delivery server-side;
+    // router.refresh() pulls the updated list back via props.
     router.refresh();
   }
 
