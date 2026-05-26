@@ -23,8 +23,8 @@ model User {
 
 model Job {
   id            String   @id @default(cuid())
-  seq           Int      @unique
-  docNo         String   @unique
+  seq           Int      @unique  // unique running number — the real job identity
+  docNo         String            // customer document no. — may repeat across jobs
   orderDate     DateTime
   deliveryTime  String
   customer      String

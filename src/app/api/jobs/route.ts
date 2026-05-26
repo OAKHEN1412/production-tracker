@@ -60,15 +60,8 @@ export async function POST(req: NextRequest) {
   // So SUPPORT can't set status, ETA, assignee, or the bill of materials here.
   const isSupport = role === "SUPPORT";
 
-  // check duplicate docNo before insert
-  const dup = await prisma.job.findUnique({ where: { docNo: data.docNo } });
-  if (dup) {
-    return NextResponse.json(
-      { error: `เลขที่เอกสาร "${data.docNo}" ซ้ำ — มีอยู่แล้วในระบบ` },
-      { status: 409 }
-    );
-  }
-
+  // docNo (customer document no.) may repeat across jobs — the job's identity is
+  // its unique running `seq`, not docNo. No duplicate check here.
   const last = await prisma.job.findFirst({ orderBy: { seq: "desc" }, select: { seq: true } });
   const nextSeq = (last?.seq ?? 0) + 1;
 
