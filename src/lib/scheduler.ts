@@ -69,11 +69,6 @@ export function computeWorkingEnd(start: Date, workingDays: number): Date {
   return d;
 }
 
-export function pickRate(opts: { assigned: boolean; sameAsPrev: boolean }) {
-  if (!opts.assigned) return RATE_UNASSIGNED;
-  return opts.sameAsPrev ? RATE_SAME : RATE_DIFF;
-}
-
 type QueueJob = {
   id: string;
   assignedToId: string | null;
@@ -201,54 +196,4 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
   );
 
   return updates;
-}
-
-// Preview without persisting — compute ETA for a hypothetical new/edited job
-// (used to show popup before save, but here we just call recompute after save and read back).
-export async function previewJobEta(input: {
-  jobId?: string | null;          // exclude self if editing
-  assignedToId: string | null;
-  qty: number;
-  item: string;
-}): Promise<{ eta: Date; rate: number; queuePosition: number; sameAsPrev: boolean }> {
-  const { assignedToId, qty, item, jobId } = input;
-
-  if (!assignedToId) {
-    const latest = await findLatestAssignedEta();
-    const start = latest ? addOneWorkday(latest) : nextWorkday(new Date());
-    const days = Math.max(1, Math.ceil(qty / RATE_UNASSIGNED));
-    return {
-      eta: computeWorkingEnd(start, days),
-      rate: RATE_UNASSIGNED,
-      queuePosition: 1,
-      sameAsPrev: false,
-    };
-  }
-
-  const queue = await prisma.job.findMany({
-    where: {
-      assignedToId,
-      cancelled: false,
-      status: { notIn: ["DONE", "CANCELLED"] },
-      ...(jobId ? { NOT: { id: jobId } } : {}),
-    },
-    orderBy: { createdAt: "asc" },
-    select: { qty: true, item: true, createdAt: true },
-  });
-
-  // Simulate appending the new job at end
-  let cursor = nextWorkday(new Date());
-  let prevItem: string | null = null;
-  for (const j of queue) {
-    const sameAsPrev = prevItem !== null && prevItem === j.item;
-    const rate = sameAsPrev ? RATE_SAME : RATE_DIFF;
-    const days = Math.max(1, Math.ceil(j.qty / rate));
-    cursor = addOneWorkday(computeWorkingEnd(cursor, days));
-    prevItem = j.item;
-  }
-  const sameAsPrev = prevItem !== null && prevItem === item;
-  const rate = sameAsPrev ? RATE_SAME : RATE_DIFF;
-  const days = Math.max(1, Math.ceil(qty / rate));
-  const eta = computeWorkingEnd(cursor, days);
-  return { eta, rate, queuePosition: queue.length + 1, sameAsPrev };
 }
