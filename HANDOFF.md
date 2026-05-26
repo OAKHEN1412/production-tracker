@@ -62,7 +62,7 @@ Helpers ใน `src/lib/auth.ts`:
 
 ### Approval workflow (SUPPORT → PRODUCTION)
 
-SUPPORT สร้างงาน = **คำขอ** (กรอกแค่ docNo/วันสั่ง/ลูกค้า/รายการ/จำนวน/เซล/หมายเหตุ) → บันทึกเป็น status `WAITING_APPROVAL` (ไม่มี BOM/ช่าง/ETA, ไม่ตัดสต๊อก, scheduler ข้าม). PRODUCTION/OWNER เปิด `/approvals` → เลือกรุ่น/ระบุวัสดุ/เลือกช่าง → **อนุมัติ** = PATCH `{status: IN_PROGRESS, assignedToId, materials, item, qty}` (ตัดสต๊อก + คิด ETA + set startedAt) หรือ **ไม่อนุมัติ** = CANCELLED. ผู้สร้างคำขอ (`createdBy`) แสดงในหน้า approvals + job detail.
+SUPPORT สร้างงาน = **คำขอ** (กรอกแค่ docNo/วันสั่ง/ลูกค้า/รายการ/จำนวน/เซล/หมายเหตุ) → บันทึกเป็น status `WAITING_APPROVAL` (ไม่มี BOM/ช่าง/ETA, ไม่ตัดสต๊อก, scheduler ข้าม). PRODUCTION/OWNER เปิด `/approvals` → เลือกรุ่น/ระบุวัสดุ/เลือกช่าง → **อนุมัติ** = PATCH `{status: PENDING, assignedToId, materials, item, qty}` (เข้าคิวรอผลิต + ตัดสต๊อก + คิด ETA) หรือ **ไม่อนุมัติ** = CANCELLED. ผู้สร้างคำขอ (`createdBy`) แสดงในหน้า approvals + job detail.
 
 ---
 

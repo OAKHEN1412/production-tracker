@@ -99,9 +99,10 @@ function RequestCard({
     const cleanMats = mats
       .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
       .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit), cutLengthMm: Number(m.cutLengthMm) || 0 }));
-    // Approve = start production now: set worker + BOM, flip to IN_PROGRESS.
+    // Approve = set worker + BOM and put the job into the production queue
+    // (PENDING / รอผลิต); stock is deducted and ETA computed on save.
     patch({
-      status: "IN_PROGRESS",
+      status: "PENDING",
       item,
       qty: Number(qty),
       assignedToId: assignedToId || null,
