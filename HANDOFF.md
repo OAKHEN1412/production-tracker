@@ -247,6 +247,15 @@ gh api repos/OAKHEN1412/production-tracker/deployments/<id>/statuses --jq '.[0]|
 
 ## Roadmap / ที่เหลือ-ไอเดียต่อ
 
+### ค้างจากที่สั่ง (จดไว้ทำต่อ)
+
+- **คิว/สต๊อกจัดส่ง เมื่อ PRODUCTION approve** — งานที่ approve แล้ว → ป้อนเข้าระบบ "ของรอจัดส่ง" (shipping queue/stock) สำหรับฝ่าย SHIPPING
+- **หน้า SHIPPING ยืนยันการส่งออก** — SHIPPING มีหน้า confirm "ของไปส่ง" (outbound) แยกจาก "รับเข้าคลัง" (inbound) — น่าจะมีรูปยืนยันเหมือนรับเข้า
+- **SUPPORT ใส่ ETA manual ได้** — เพิ่มช่อง ETA manual ในฟอร์มคำขอของ SUPPORT (ตอนนี้ SUPPORT ตั้ง ETA ไม่ได้)
+- **สั่งงานหลายรายการพร้อมกัน** — สร้าง/ลิสต์หลาย work order ในครั้งเดียว แต่ระบบแยกออกเป็นรายการผลิตแยกแต่ละตัว
+
+### อื่นๆ
+
 - ~~ตัดสต๊อกตามความยาวจริง~~ ✅ ทำแล้ว (cutLengthMm + best-fit cut, ดู "Length-cut deduction")
 - ประวัติการเคลื่อนไหวสต๊อก (stock movement log) + ใครปรับเมื่อไหร่
 - Export Excel กลับ (งาน / สต๊อก)
