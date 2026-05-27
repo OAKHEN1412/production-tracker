@@ -11,6 +11,7 @@ import {
 } from "@/lib/eta";
 import UploadExcel from "./UploadExcel";
 import EtaPopup from "./EtaPopup";
+import SupportRequestForm from "./SupportRequestForm";
 
 type User = { id: string; name: string; username: string };
 type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
@@ -425,8 +426,13 @@ export default function JobTable({
         </div>
       </div>
 
-      {/* Inline create — 1..N job drafts in one panel ("+ เพิ่มอีกงาน" appends) */}
-      {adding && canEdit && (
+      {/* SUPPORT: shared header + many line items (รายการ+จำนวน) → 1 request each */}
+      {adding && canEdit && isSupport && (
+        <SupportRequestForm salesUsers={salesUsers} onClose={resetAdd} />
+      )}
+
+      {/* PRODUCTION/OWNER: 1..N full job drafts in one panel ("+ เพิ่มอีกงาน" appends) */}
+      {adding && canEdit && !isSupport && (
         <div className="bg-white p-4 rounded shadow border-2 border-green-400 space-y-4">
           <div className="font-semibold text-sm">
             + เพิ่มงาน{drafts.length > 1 ? ` (${drafts.length} งาน)` : ""}

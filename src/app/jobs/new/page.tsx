@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import JobForm from "@/components/JobForm";
+import SupportRequestForm from "@/components/SupportRequestForm";
 import { getCutAllowanceMm } from "@/lib/settings";
 
 export default async function NewJobPage() {
@@ -39,8 +40,12 @@ export default async function NewJobPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h1 className="text-xl font-bold mb-4">สร้างงานผลิตใหม่</h1>
-      <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} products={products} cutAllowanceMm={cutAllowanceMm} canSetStatus={role !== "SUPPORT"} canSetEta />
+      <h1 className="text-xl font-bold mb-4">{role === "SUPPORT" ? "ส่งคำขอผลิต" : "สร้างงานผลิตใหม่"}</h1>
+      {role === "SUPPORT" ? (
+        <SupportRequestForm salesUsers={salesUsers} />
+      ) : (
+        <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} products={products} cutAllowanceMm={cutAllowanceMm} canSetStatus canSetEta />
+      )}
     </div>
   );
 }

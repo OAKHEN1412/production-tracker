@@ -65,7 +65,7 @@ Helpers ใน `src/lib/auth.ts`:
 
 ### Approval workflow (SUPPORT → PRODUCTION)
 
-SUPPORT สร้างงาน = **คำขอ** (กรอก docNo/วันสั่ง/ลูกค้า/รายการ/จำนวน/เซล/หมายเหตุ + **ETA ที่ขอ**: ช่วงส่ง (deliveryTime) และ/หรือ วันที่ (etaManual)) → status `WAITING_APPROVAL` (ไม่มี BOM/ช่าง, ไม่ตัดสต๊อก, scheduler ข้าม). PRODUCTION/OWNER เปิด `/approvals` → เลือกรุ่น/ระบุวัสดุ/**ชุดประกอบ**/เลือกช่าง → **อนุมัติ** = PATCH `{status: AWAITING_DELIVERY, assignedToId, materials, assemblies, item, qty}` (**ตัดสต๊อก + เข้าคิว + คิด ETA ทันที** แต่ status = **รอจัดส่ง**) หรือ **ไม่อนุมัติ** = CANCELLED.
+SUPPORT สร้างงาน = **คำขอ** ผ่าน `SupportRequestForm` (dashboard "+ เพิ่มงาน" + `/jobs/new`): กรอก **ข้อมูลร่วมครั้งเดียว** (docNo/วันสั่ง/ลูกค้า/เซล/หมายเหตุ + **ETA ที่ขอ**: ช่วงส่ง deliveryTime และ/หรือ วันที่ etaManual) + **หลายรายการผลิต** (รายการ+จำนวน) → POST `/api/jobs` แยกทีละรายการ (docNo เดียวกัน, item คนละตัว) → status `WAITING_APPROVAL` (ไม่มี BOM/ช่าง, ไม่ตัดสต๊อก, scheduler ข้าม). PRODUCTION/OWNER เปิด `/approvals` → เลือกรุ่น/ระบุวัสดุ/**ชุดประกอบ**/เลือกช่าง → **อนุมัติ** = PATCH `{status: AWAITING_DELIVERY, assignedToId, materials, assemblies, item, qty}` (**ตัดสต๊อก + เข้าคิว + คิด ETA ทันที** แต่ status = **รอจัดส่ง**) หรือ **ไม่อนุมัติ** = CANCELLED.
 
 **Flow:** `รออนุมัติ` → (PRODUCTION อนุมัติ) → `รอจัดส่ง` (AWAITING_DELIVERY) → (SHIPPING ยืนยันมาส่งของ + รูป ที่ `/shipping`) → `รอผลิต` (PENDING) → ผลิต. `AWAITING_DELIVERY` อยู่ในคิว scheduler (มี ETA). ผู้สร้างคำขอ (`createdBy`) แสดงใน approvals + job detail.
 
@@ -210,7 +210,7 @@ src/
     JobTable (เพิ่มงาน 1..N แถวในฟอร์มเดียว), JobForm, EtaPopup, StatsSidebar, UploadExcel,
     MaterialsTable, LengthEditor, UploadMaterialsExcel, ProductsTable,
     DeliveriesView, ShippingView, HistoryView, UsersAdmin, ProfileForm, NavBar, Providers,
-    ApprovalsView, WarehouseTabs, BomEditor, AssemblyEditor
+    ApprovalsView, WarehouseTabs, BomEditor, AssemblyEditor, SupportRequestForm
   lib/
     auth.ts        # NextAuth + role helpers
     prisma.ts      # singleton
