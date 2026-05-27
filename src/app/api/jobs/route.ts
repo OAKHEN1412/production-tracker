@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recomputeWorkerQueues } from "@/lib/scheduler";
-import { reconcileJobMaterials, InsufficientStockError } from "@/lib/stock";
+import { reconcileJobMaterials, setJobAssemblies, InsufficientStockError } from "@/lib/stock";
 import { z } from "zod";
 
 const materialsSchema = z
@@ -12,6 +12,10 @@ const materialsSchema = z
     qtyPerUnit: z.coerce.number().nonnegative(),
     cutLengthMm: z.coerce.number().nonnegative().optional(),
   }))
+  .optional();
+
+const assembliesSchema = z
+  .array(z.object({ name: z.string(), qty: z.coerce.number().int().nonnegative() }))
   .optional();
 
 const createSchema = z.object({
@@ -27,6 +31,7 @@ const createSchema = z.object({
   salesOwnerId: z.string().optional().nullable(),
   status: z.string().optional(),
   materials: materialsSchema,
+  assemblies: assembliesSchema,
 });
 
 export async function GET() {
@@ -125,6 +130,12 @@ export async function POST(req: NextRequest) {
       }
       throw e;
     }
+  }
+
+  // Assemblies (ชุดประกอบ → shipping list). SUPPORT requests carry none — PRODUCTION
+  // sets them via the model at approval.
+  if (!isSupport && data.assemblies) {
+    await setJobAssemblies(job.id, data.assemblies);
   }
 
   // Recompute queue ETAs for affected workers (incl. unassigned bucket)

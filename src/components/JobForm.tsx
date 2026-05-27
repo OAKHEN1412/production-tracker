@@ -6,7 +6,8 @@ import BomEditor, { type MatRow } from "./BomEditor";
 
 type User = { id: string; name: string; username: string };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
-type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
+type AsmRow = { name: string; qty: number };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[] };
 
 type Initial = {
   id?: string;
@@ -58,6 +59,7 @@ export default function JobForm({
   const router = useRouter();
   const editing = !!initial?.id;
   const [mats, setMats] = useState<MatRow[]>(initial?.materials ?? []);
+  const [asms, setAsms] = useState<AsmRow[]>([]);
   const [productId, setProductId] = useState("");
 
   const [f, setF] = useState({
@@ -92,6 +94,9 @@ export default function JobForm({
       materials: mats
         .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
         .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit), cutLengthMm: Number(m.cutLengthMm) || 0 })),
+      // Only send assemblies when a model was picked this session, so editing a job
+      // without re-selecting a model doesn't wipe its existing assembly list.
+      ...(productId ? { assemblies: asms.filter((a) => a.name.trim() && Number(a.qty) > 0) } : {}),
     };
     const url = editing ? `/api/jobs/${initial!.id}` : "/api/jobs";
     const method = editing ? "PATCH" : "POST";
@@ -125,9 +130,11 @@ export default function JobForm({
     if (!id) return;
     const p = products.find((x) => x.id === id);
     if (!p) return;
-    // Prefill the produced item with the model name and copy its recipe as the BOM.
+    // Prefill the produced item with the model name and copy its recipe as the BOM
+    // + its assembly list (the shipping parts list).
     setF((prev) => ({ ...prev, item: p.code || p.name }));
     setMats(p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })));
+    setAsms((p.assemblies ?? []).map((a) => ({ name: a.name, qty: a.qty })));
   }
   const input = "border rounded px-3 py-2 w-full text-sm";
   const label = "text-xs text-gray-600";
@@ -194,9 +201,19 @@ export default function JobForm({
         </div>
       )}
 
+      {/* SUPPORT requests a delivery window (label); PRODUCTION's is auto from the queue. */}
+      {!canSetStatus && (
+        <div>
+          <div className={label}>ช่วงเวลาส่ง (ขอ)</div>
+          <select className={input} value={f.deliveryTime}
+            onChange={(e) => setF({ ...f, deliveryTime: e.target.value })}>
+            {DELIVERY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      )}
       {showEta && (
-        <div className="sm:col-span-2">
-          <div className={label}>{canSetStatus ? "ETA Manual (กำหนดเอง)" : "วันที่ต้องการของ (ETA ที่ขอ)"}</div>
+        <div className={canSetStatus ? "sm:col-span-2" : ""}>
+          <div className={label}>{canSetStatus ? "ETA Manual (กำหนดเอง)" : "วันที่ต้องการ (เจาะจง)"}</div>
           <input type="date" className={input} value={f.etaManual}
             onChange={(e) => setF({ ...f, etaManual: e.target.value })} />
         </div>

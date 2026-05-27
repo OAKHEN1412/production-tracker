@@ -60,6 +60,7 @@ model Job {
 
   logs          JobLog[]
   materials     JobMaterial[]
+  assemblies    JobAssembly[]
   shipment      Shipment?
 }
 
@@ -124,7 +125,33 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  materials ProductMaterial[]
+  materials  ProductMaterial[]
+  assemblies ProductAssembly[]
+}
+
+// An assembly/sub-part the cylinder model is built from (ชุดประกอบ). This is the
+// physical-parts list SHIPPING brings to the factory — separate from the material
+// BOM (วัสดุ) and carries no stock.
+model ProductAssembly {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String  // ชื่อชุด
+  qty       Int     @default(1) // per produced unit
+
+  @@index([productId])
+}
+
+// A job's copy of its model's assemblies (taken when a product is selected). What
+// SHIPPING sees on the รอจัดส่ง queue (× job.qty). No stock, no material link.
+model JobAssembly {
+  id    String @id @default(cuid())
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name  String
+  qty   Int    @default(1) // per produced unit
+
+  @@index([jobId])
 }
 
 model ProductMaterial {

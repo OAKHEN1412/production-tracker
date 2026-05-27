@@ -84,8 +84,8 @@ export function canReceiveStock(role?: string) {
 export function canEditMaterials(role?: string) {
   return role === "OWNER" || role === "PRODUCTION" || role === "SHIPPING";
 }
-// Who can confirm an outbound shipment (finished job → SHIPPED). The warehouse
-// team (SHIPPING) dispatches; PRODUCTION/OWNER can also confirm.
+// Who can confirm that equipment was delivered to the factory (รอจัดส่ง → รอผลิต).
+// The warehouse/logistics team (SHIPPING) confirms; PRODUCTION/OWNER can too.
 export function canShip(role?: string) {
   return role === "OWNER" || role === "PRODUCTION" || role === "SHIPPING";
 }

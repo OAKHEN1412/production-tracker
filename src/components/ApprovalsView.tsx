@@ -2,10 +2,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import BomEditor, { type MatRow } from "./BomEditor";
+import AssemblyEditor from "./AssemblyEditor";
 
 type User = { id: string; name: string; username: string };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
-type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
+type AsmRow = { name: string; qty: number };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[] };
 
 type Job = {
   id: string;
@@ -68,6 +70,7 @@ function RequestCard({
   const [qty, setQty] = useState(job.qty);
   const [assignedToId, setAssignedToId] = useState("");
   const [mats, setMats] = useState<MatRow[]>([]);
+  const [asms, setAsms] = useState<AsmRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -76,6 +79,7 @@ function RequestCard({
     if (!p) return;
     setItem(p.code || p.name);
     setMats(p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })));
+    setAsms((p.assemblies ?? []).map((a) => ({ name: a.name, qty: a.qty })));
   }
 
   async function patch(body: any) {
@@ -99,14 +103,16 @@ function RequestCard({
     const cleanMats = mats
       .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
       .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit), cutLengthMm: Number(m.cutLengthMm) || 0 }));
-    // Approve = set worker + BOM and put the job into the production queue
-    // (PENDING / รอผลิต); stock is deducted and ETA computed on save.
+    // Approve = set worker + BOM, deduct stock and compute ETA (job enters the
+    // production queue) — but status goes to รอจัดส่ง (AWAITING_DELIVERY) first.
+    // SHIPPING confirms the equipment arrived at the factory → รอผลิต (PENDING).
     patch({
-      status: "PENDING",
+      status: "AWAITING_DELIVERY",
       item,
       qty: Number(qty),
       assignedToId: assignedToId || null,
       materials: cleanMats,
+      assemblies: asms.filter((a) => a.name.trim() && Number(a.qty) > 0).map((a) => ({ name: a.name.trim(), qty: Number(a.qty) })),
     });
   }
   function reject() {
@@ -174,6 +180,10 @@ function RequestCard({
           label="วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกเมื่ออนุมัติ"
           hint={`ตัดจริง × ${Number(qty) || 0} ชิ้น · วัสดุเส้น = จำนวนเส้น × ความยาวตัด/ตัว`} />
       </div>
+      <div className="border-t pt-2 mt-2">
+        <AssemblyEditor value={asms} onChange={setAsms}
+          hint={`ฝ่ายจัดส่งเห็นรายการนี้ × ${Number(qty) || 0} ชิ้น เพื่อเอาของไปผลิต`} />
+      </div>
 
       {err && <div className="text-red-600 text-sm mt-2">{err}</div>}
 
@@ -184,7 +194,7 @@ function RequestCard({
         </button>
         <button onClick={approve} disabled={busy}
           className="px-4 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50">
-          {busy ? "..." : "✓ อนุมัติ & สั่งงาน"}
+          {busy ? "..." : "✓ อนุมัติ → รอจัดส่ง"}
         </button>
       </div>
     </div>

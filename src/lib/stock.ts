@@ -308,6 +308,37 @@ export async function restoreDeductedMaterials(jobId: string) {
   for (const jm of cutMats) await addPieces(jm.materialId, jm.cutLengthMm, jm.qtyPerUnit * job.qty);
 }
 
+type AsmRow = { name: string; qty: number };
+
+// Clean an assembly list: drop blank names / non-positive qty, trim, floor qty.
+function cleanAssemblies(rows: AsmRow[]): AsmRow[] {
+  const out: AsmRow[] = [];
+  for (const r of rows ?? []) {
+    const name = (r?.name ?? "").trim();
+    const qty = Math.floor(Number(r?.qty));
+    if (name && Number.isFinite(qty) && qty > 0) out.push({ name, qty });
+  }
+  return out;
+}
+
+// Replace a product's assembly list (ชุดประกอบ). No stock — just parts to ship.
+export async function setProductAssemblies(productId: string, assemblies: AsmRow[]) {
+  const rows = cleanAssemblies(assemblies);
+  await prisma.$transaction([
+    prisma.productAssembly.deleteMany({ where: { productId } }),
+    ...(rows.length ? [prisma.productAssembly.createMany({ data: rows.map((r) => ({ productId, name: r.name, qty: r.qty })) })] : []),
+  ]);
+}
+
+// Replace a job's assembly list (copied from its model when selected).
+export async function setJobAssemblies(jobId: string, assemblies: AsmRow[]) {
+  const rows = cleanAssemblies(assemblies);
+  await prisma.$transaction([
+    prisma.jobAssembly.deleteMany({ where: { jobId } }),
+    ...(rows.length ? [prisma.jobAssembly.createMany({ data: rows.map((r) => ({ jobId, name: r.name, qty: r.qty })) })] : []),
+  ]);
+}
+
 // Replace a product's (cylinder model) recipe. Pass [] to clear.
 // Products carry no stock, so this only rewrites the recipe rows.
 export async function setProductMaterials(productId: string, materials: MatRow[]) {

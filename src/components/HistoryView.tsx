@@ -28,9 +28,8 @@ function fmtDateTime(d?: string | null) {
 // statuses worth showing a duration bar for (skip terminal)
 const TRACKED: Status[] = ["PENDING", "IN_PROGRESS", "PAUSED", "QC"];
 
-// A job counts as finished production once it's DONE — and stays counted after
-// it ships (SHIPPED), so shipped jobs don't vanish from the history/summary.
-const isFinished = (s: string) => s === "DONE" || s === "SHIPPED";
+// A job counts as finished production once it's DONE.
+const isFinished = (s: string) => s === "DONE";
 
 export default function HistoryView({ jobs }: { jobs: Job[] }) {
   const [onlyDone, setOnlyDone] = useState(true);

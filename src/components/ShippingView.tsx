@@ -9,9 +9,10 @@ type QueueJob = {
   customer: string;
   item: string;
   qty: number;
-  finishedAt: string | null;
+  orderDate: string | null;
   assignedTo: { name: string } | null;
   salesOwner: { name: string } | null;
+  assemblies: { name: string; qty: number }[];
 };
 type Shipment = {
   id: string;
@@ -110,7 +111,7 @@ export default function ShippingView({
     setConfirmId(null);
     setNote("");
     setPhoto("");
-    // Job left the queue (DONE → SHIPPED); pull fresh lists.
+    // Job left the queue (รอจัดส่ง → รอผลิต); pull fresh lists.
     router.refresh();
   }
 
@@ -124,14 +125,14 @@ export default function ShippingView({
           รอจัดส่ง ({queue.length})
         </button>
         <button className={tabCls("history")} onClick={() => setTab("history")}>
-          ส่งแล้ว ({shipments.length})
+          มาส่งแล้ว ({shipments.length})
         </button>
       </div>
 
       {tab === "queue" ? (
         queue.length === 0 ? (
           <div className="bg-white rounded shadow p-8 text-center text-gray-500 text-sm">
-            ไม่มีของรอจัดส่ง 🎉 (งานที่ผลิตเสร็จจะมาโผล่ที่นี่)
+            ไม่มีงานรอจัดส่ง 🎉 (งานที่ฝ่ายผลิตอนุมัติจะมาโผล่ที่นี่)
           </div>
         ) : (
           <div className="space-y-2">
@@ -149,21 +150,38 @@ export default function ShippingView({
                   <div className="text-xs text-gray-500 text-right">
                     <div>ช่าง: {j.assignedTo?.name ?? "-"}</div>
                     <div>เซล: {j.salesOwner?.name ?? "-"}</div>
-                    <div>ผลิตเสร็จ: {fmtDateTime(j.finishedAt)}</div>
+                    <div>สั่งผลิต: {fmtDateTime(j.orderDate)}</div>
                   </div>
+                </div>
+
+                {/* Assembly list to bring — qty × produced units. No materials shown. */}
+                <div className="mt-2 bg-teal-50 border border-teal-200 rounded p-2">
+                  <div className="text-xs font-semibold text-teal-800 mb-1">📦 ของที่ต้องเอาไปผลิต (× {j.qty} ตัว)</div>
+                  {j.assemblies.length === 0 ? (
+                    <div className="text-xs text-gray-400">— ไม่มีรายการชุดประกอบ (ตั้งได้ที่หน้ารุ่นกระบอก) —</div>
+                  ) : (
+                    <ul className="text-sm space-y-0.5">
+                      {j.assemblies.map((a, k) => (
+                        <li key={k} className="flex justify-between">
+                          <span>{a.name}</span>
+                          <span className="font-semibold text-teal-900">{a.qty * j.qty} ชุด <span className="text-xs text-gray-500 font-normal">({a.qty}×{j.qty})</span></span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 {confirmId === j.id ? (
                   <div className="mt-3 pt-3 border-t space-y-2">
                     <div>
-                      <div className="text-xs text-gray-600 mb-1">รูปยืนยันการส่ง * (มือถือจะเปิดกล้อง)</div>
+                      <div className="text-xs text-gray-600 mb-1">รูปยืนยันการมาส่ง * (มือถือจะเปิดกล้อง)</div>
                       <input type="file" accept="image/*" capture="environment" onChange={onPhoto} className="text-sm" />
                       {photo && <img src={photo} alt="preview" className="mt-2 max-h-48 rounded border" />}
                     </div>
                     <div>
-                      <div className="text-xs text-gray-600">หมายเหตุ (เลขพัสดุ / ขนส่ง)</div>
+                      <div className="text-xs text-gray-600">มาส่งอุปกรณ์อะไร / หมายเหตุ</div>
                       <input className="border rounded px-3 py-2 w-full text-sm" value={note}
-                        onChange={(e) => setNote(e.target.value)} placeholder="เช่น Kerry TH123456 / รถบริษัท" />
+                        onChange={(e) => setNote(e.target.value)} placeholder="เช่น ท่อ + ลูกสูบ ครบตามลิสต์ / ผู้มาส่ง" />
                     </div>
                     <div className="flex gap-2 justify-end">
                       <button onClick={() => setConfirmId(null)} className="px-3 py-1.5 text-sm border rounded">
@@ -171,7 +189,7 @@ export default function ShippingView({
                       </button>
                       <button onClick={() => submit(j.id)} disabled={busy || !photo}
                         className="px-4 py-1.5 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded disabled:opacity-50">
-                        {busy ? "กำลังบันทึก..." : "✓ ยืนยันส่งออก"}
+                        {busy ? "กำลังบันทึก..." : "✓ ยืนยันมาส่งของแล้ว"}
                       </button>
                     </div>
                   </div>
@@ -179,7 +197,7 @@ export default function ShippingView({
                   <div className="mt-3 flex justify-end">
                     <button onClick={() => beginConfirm(j.id)}
                       className="px-4 py-1.5 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded">
-                      📦 ยืนยันส่งออก
+                      📦 ยืนยันมาส่งของ
                     </button>
                   </div>
                 )}
@@ -188,7 +206,7 @@ export default function ShippingView({
           </div>
         )
       ) : shipments.length === 0 ? (
-        <div className="bg-white rounded shadow p-8 text-center text-gray-500 text-sm">ยังไม่มีการส่งออก</div>
+        <div className="bg-white rounded shadow p-8 text-center text-gray-500 text-sm">ยังไม่มีการมาส่ง</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {shipments.map((s) => (

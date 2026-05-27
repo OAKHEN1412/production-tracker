@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recomputeWorkerQueues } from "@/lib/scheduler";
-import { reconcileJobMaterials, restoreDeductedMaterials, InsufficientStockError } from "@/lib/stock";
+import { reconcileJobMaterials, restoreDeductedMaterials, setJobAssemblies, InsufficientStockError } from "@/lib/stock";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -27,6 +27,9 @@ const updateSchema = z.object({
       qtyPerUnit: z.coerce.number().nonnegative(),
       cutLengthMm: z.coerce.number().nonnegative().optional(),
     }))
+    .optional(),
+  assemblies: z
+    .array(z.object({ name: z.string(), qty: z.coerce.number().int().nonnegative() }))
     .optional(),
 });
 
@@ -84,6 +87,7 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       finishedAt: undefined,
       assignedToId: undefined,
       materials: undefined,
+      assemblies: undefined,
     };
   }
 
@@ -170,6 +174,10 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       },
     });
   }
+
+  // Assembly list (ชุดประกอบ → shipping). Replaced when provided (e.g. PRODUCTION
+  // picks a model at approval). SUPPORT can't set it (stripped above).
+  if (d.assemblies !== undefined) await setJobAssemblies(ctx.params.id, d.assemblies);
 
   // Recompute queue ETAs of OLD and NEW assignee (and unassigned bucket)
   await recomputeWorkerQueues([existing.assignedToId, updated.assignedToId]);

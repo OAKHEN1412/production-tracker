@@ -27,8 +27,9 @@ export async function GET() {
   return NextResponse.json(shipments);
 }
 
-// Confirm an outbound shipment: a finished job (status DONE) is dispatched to the
-// customer with a photo confirmation. Flips the job to SHIPPED and stamps shippedAt.
+// Confirm equipment delivery to the factory: for a job PRODUCTION approved (status
+// รอจัดส่ง), SHIPPING records a photo + note of what arrived, releasing it to
+// production (รอผลิต / PENDING). Not linked to material stock.
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
   const d = parsed.data;
 
   if (!d.photo.startsWith("data:image/")) {
-    return NextResponse.json({ error: "ต้องแนบรูปยืนยันการส่ง (image)" }, { status: 400 });
+    return NextResponse.json({ error: "ต้องแนบรูปยืนยันการมาส่ง (image)" }, { status: 400 });
   }
   if (d.photo.length > 8_000_000) {
     return NextResponse.json({ error: "รูปใหญ่เกินไป — ถ่ายใหม่หรือลดขนาด" }, { status: 413 });
@@ -51,15 +52,16 @@ export async function POST(req: NextRequest) {
 
   const job = await prisma.job.findUnique({ where: { id: d.jobId } });
   if (!job) return NextResponse.json({ error: "ไม่พบงาน" }, { status: 404 });
-  // Only finished goods ship. (Front-end only offers DONE jobs, but enforce here.)
-  if (job.status !== "DONE") {
+  // Shipping confirms the equipment was delivered to the factory for a job that
+  // PRODUCTION approved (status รอจัดส่ง). Confirming releases it to production (รอผลิต).
+  if (job.status !== "AWAITING_DELIVERY") {
     return NextResponse.json(
-      { error: `ส่งได้เฉพาะงานที่ผลิตเสร็จ (DONE) — งานนี้สถานะ ${job.status}` },
+      { error: `ยืนยันได้เฉพาะงานสถานะ "รอจัดส่ง" — งานนี้สถานะ ${job.status}` },
       { status: 400 }
     );
   }
   const already = await prisma.shipment.findUnique({ where: { jobId: d.jobId } });
-  if (already) return NextResponse.json({ error: "งานนี้ยืนยันส่งไปแล้ว" }, { status: 409 });
+  if (already) return NextResponse.json({ error: "งานนี้ยืนยันมาส่งไปแล้ว" }, { status: 409 });
 
   const now = new Date();
   const shipment = await prisma.shipment.create({
@@ -67,16 +69,17 @@ export async function POST(req: NextRequest) {
       jobId: d.jobId,
       photo: d.photo,
       note: d.note?.trim() || null,
-      shippedAt: now,
+      shippedAt: now, // delivery-confirmed timestamp
       createdById: (session.user as any).id,
     },
   });
+  // รอจัดส่ง → รอผลิต. Stock/ETA were already set at approval, so no requeue needed.
   await prisma.job.update({
     where: { id: d.jobId },
-    data: { status: "SHIPPED", shippedAt: now },
+    data: { status: "PENDING", shippedAt: now },
   });
   await prisma.jobLog.create({
-    data: { jobId: d.jobId, status: "SHIPPED", message: `status: ${job.status} → SHIPPED` },
+    data: { jobId: d.jobId, status: "PENDING", message: `จัดส่งยืนยันมาส่งของ: รอจัดส่ง → รอผลิต` },
   });
 
   return NextResponse.json({ ok: true, id: shipment.id }, { status: 201 });

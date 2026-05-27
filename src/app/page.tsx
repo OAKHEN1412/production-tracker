@@ -35,6 +35,7 @@ export default async function HomePage() {
       select: {
         id: true, name: true, code: true,
         materials: { select: { materialId: true, qtyPerUnit: true, cutLengthMm: true } },
+        assemblies: { select: { name: true, qty: true } },
       },
     }),
   ]);

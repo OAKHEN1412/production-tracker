@@ -15,6 +15,7 @@ export default async function ProductsPage() {
       orderBy: { name: "asc" },
       include: {
         materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } },
+        assemblies: true,
       },
     }),
     prisma.material.findMany({

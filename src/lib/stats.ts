@@ -12,6 +12,7 @@ export type JobLike = {
 export type Overall = {
   totalJobs: number;
   waitingApproval: { jobs: number; qty: number };
+  awaitingDelivery: { jobs: number; qty: number };
   pending: { jobs: number; qty: number };
   inProgress: { jobs: number; qty: number };
   paused: { jobs: number; qty: number };
@@ -39,6 +40,7 @@ export function computeOverall(jobs: JobLike[]): Overall {
   const o: Overall = {
     totalJobs: jobs.length,
     waitingApproval: { jobs: 0, qty: 0 },
+    awaitingDelivery: { jobs: 0, qty: 0 },
     pending: { jobs: 0, qty: 0 },
     inProgress: { jobs: 0, qty: 0 },
     paused: { jobs: 0, qty: 0 },
@@ -56,6 +58,10 @@ export function computeOverall(jobs: JobLike[]): Overall {
         o.waitingApproval.jobs++;
         o.waitingApproval.qty += j.qty;
         break;
+      case "AWAITING_DELIVERY":
+        o.awaitingDelivery.jobs++;
+        o.awaitingDelivery.qty += j.qty;
+        break;
       case "PENDING":
         o.pending.jobs++;
         o.pending.qty += j.qty;
@@ -72,9 +78,7 @@ export function computeOverall(jobs: JobLike[]): Overall {
         o.qc.jobs++;
         o.qc.qty += j.qty;
         break;
-      // SHIPPED jobs are completed production too — count them with DONE.
       case "DONE":
-      case "SHIPPED":
         if (isThisMonth(j.finishedAt)) {
           o.doneThisMonth.jobs++;
           o.doneThisMonth.qty += j.qty;
@@ -101,13 +105,14 @@ export function computeWorkers(jobs: JobLike[]): WorkerStat[] {
       };
       map.set(id, w);
     }
-    if ((j.status === "DONE" || j.status === "SHIPPED") && isThisMonth(j.finishedAt)) {
+    if (j.status === "DONE" && isThisMonth(j.finishedAt)) {
       w.doneThisMonth.jobs++;
       w.doneThisMonth.qty += j.qty;
     } else if (j.status === "IN_PROGRESS" || j.status === "QC" || j.status === "PAUSED") {
       w.inProgress.jobs++;
       w.inProgress.qty += j.qty;
-    } else if (j.status === "PENDING") {
+    } else if (j.status === "PENDING" || j.status === "AWAITING_DELIVERY") {
+      // AWAITING_DELIVERY = approved + queued, waiting for shipping → counts as "waiting".
       w.pending.jobs++;
       w.pending.qty += j.qty;
     }

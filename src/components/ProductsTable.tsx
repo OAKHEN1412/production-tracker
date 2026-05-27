@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isLengthTracked } from "@/lib/materials";
 import BomEditor from "./BomEditor";
+import AssemblyEditor, { type AsmRow } from "./AssemblyEditor";
 
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
 type Recipe = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
@@ -12,12 +13,13 @@ type Product = {
   name: string;
   notes: string | null;
   materials: { id: string; materialId: string; qtyPerUnit: number; cutLengthMm: number; material: MaterialOpt }[];
+  assemblies: { id: string; name: string; qty: number }[];
 };
 
-type Draft = { code: string; name: string; notes: string; mats: Recipe[] };
+type Draft = { code: string; name: string; notes: string; mats: Recipe[]; asms: AsmRow[] };
 
 function emptyDraft(): Draft {
-  return { code: "", name: "", notes: "", mats: [] };
+  return { code: "", name: "", notes: "", mats: [], asms: [] };
 }
 function toDraft(p: Product): Draft {
   return {
@@ -25,6 +27,7 @@ function toDraft(p: Product): Draft {
     name: p.name,
     notes: p.notes ?? "",
     mats: p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })),
+    asms: (p.assemblies ?? []).map((a) => ({ name: a.name, qty: a.qty })),
   };
 }
 function payload(d: Draft) {
@@ -35,6 +38,9 @@ function payload(d: Draft) {
     materials: d.mats
       .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
       .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit), cutLengthMm: Number(m.cutLengthMm) || 0 })),
+    assemblies: d.asms
+      .filter((a) => a.name.trim() && Number(a.qty) > 0)
+      .map((a) => ({ name: a.name.trim(), qty: Number(a.qty) })),
   };
 }
 
@@ -217,6 +223,19 @@ export default function ProductsTable({
                     ))}
                   </ul>
                 )}
+                {p.assemblies && p.assemblies.length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-xs text-gray-500 mb-1">🚚 ชุดประกอบ (ส่งให้ฝ่ายจัดส่ง):</div>
+                    <ul className="text-sm space-y-0.5">
+                      {p.assemblies.map((a) => (
+                        <li key={a.id} className="flex justify-between">
+                          <span>{a.name}</span>
+                          <span className="text-gray-600">{a.qty} ชุด</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -256,6 +275,11 @@ function Fields({
 
       <BomEditor value={draft.mats} onChange={(mats) => setDraft({ ...draft, mats })}
         allMaterials={allMaterials} label="วัสดุต่อ 1 กระบอก (วัสดุเส้น = จำนวนเส้น × ความยาวตัด mm/ตัว)" />
+
+      <div className="border-t pt-3">
+        <AssemblyEditor value={draft.asms} onChange={(asms) => setDraft({ ...draft, asms })}
+          hint="ฝ่ายจัดส่งเห็นรายการนี้ (× จำนวนผลิต) เพื่อเอาของไปผลิต — ไม่เกี่ยวกับสต๊อกวัสดุ" />
+      </div>
     </div>
   );
 }

@@ -11,11 +11,11 @@ import {
 } from "@/lib/eta";
 import UploadExcel from "./UploadExcel";
 import EtaPopup from "./EtaPopup";
-import MultiJobForm from "./MultiJobForm";
 
 type User = { id: string; name: string; username: string };
 type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
-type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[] };
+type AsmRow = { name: string; qty: number };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[] };
 
 type Job = {
   id: string;
@@ -66,7 +66,7 @@ const SORT_LABEL: Record<SortKey, string> = {
 };
 
 const STATUS_ORDER: Record<Status, number> = {
-  WAITING_APPROVAL: 0, PENDING: 1, IN_PROGRESS: 2, PAUSED: 3, QC: 4, DONE: 5, SHIPPED: 6, CANCELLED: 7,
+  WAITING_APPROVAL: 0, AWAITING_DELIVERY: 1, PENDING: 2, IN_PROGRESS: 3, PAUSED: 4, QC: 5, DONE: 6, CANCELLED: 7,
 };
 
 function sortJobs(arr: Job[], key: SortKey, dir: "asc" | "desc"): Job[] {
@@ -123,6 +123,7 @@ type Draft = {
   rate: string;
   cancelled: boolean;
   materials: MatRow[];
+  assemblies: AsmRow[];
 };
 
 function emptyDraft(): Draft {
@@ -141,6 +142,7 @@ function emptyDraft(): Draft {
     rate: "",
     cancelled: false,
     materials: [],
+    assemblies: [],
   };
 }
 
@@ -160,6 +162,7 @@ function jobToDraft(j: Job): Draft {
     rate: j.rate == null ? "" : String(j.rate),
     cancelled: j.cancelled,
     materials: [], // BOM is not edited inline; left untouched on save
+    assemblies: [], // likewise; only set when a model is picked on create
   };
 }
 
@@ -199,11 +202,13 @@ export default function JobTable({
   const [sortKey, setSortKey] = useState<SortKey>("seq");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Inline add
+  // Inline add — one panel that holds 1..N job drafts ("+ เพิ่มอีกงาน" appends).
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState<Draft>(emptyDraft());
-  // Multi-order add (many rows → many jobs)
-  const [multiAdding, setMultiAdding] = useState(false);
+  const [drafts, setDrafts] = useState<Draft[]>([emptyDraft()]);
+  const setDraftAt = (i: number, d: Draft) => setDrafts((arr) => arr.map((x, idx) => (idx === i ? d : x)));
+  const addDraftRow = () => setDrafts((arr) => [...arr, emptyDraft()]);
+  const removeDraftRow = (i: number) => setDrafts((arr) => (arr.length > 1 ? arr.filter((_, idx) => idx !== i) : arr));
+  const resetAdd = () => { setAdding(false); setDrafts([emptyDraft()]); };
 
   // Inline edit
   const [editId, setEditId] = useState<string | null>(null);
@@ -261,27 +266,39 @@ export default function JobTable({
     };
   }
 
-  async function createJob() {
-    setBusyId("__new");
-    const res = await fetch("/api/jobs", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...payloadFromDraft(draft), materials: draft.materials }),
-    });
-    setBusyId(null);
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      const msg = typeof j.error === "string" ? j.error : JSON.stringify(j.error);
-      alert("สร้างไม่ได้: " + msg);
+  // Save every filled draft as its own job (each POST runs the full create path:
+  // BOM/stock deduct, SUPPORT→WAITING_APPROVAL, ETA recompute). One job → ETA popup;
+  // many → a count summary.
+  async function createAll() {
+    const valid = drafts.filter((d) => d.docNo && d.customer && d.item);
+    if (valid.length === 0) {
+      alert("กรอกอย่างน้อย 1 งาน (เลขที่เอกสาร / ลูกค้า / รายการ)");
       return;
     }
-    const created = await res.json();
-    setAdding(false);
-    setDraft(emptyDraft());
-    // router.refresh() re-runs the page query and feeds fresh jobs back via the
-    // `initial` prop (synced by the useEffect) — no need for a second /api/jobs GET.
-    router.refresh();
-    setPopup({ job: created, mode: "created" });
+    setBusyId("__new");
+    const created: any[] = [];
+    const errs: string[] = [];
+    for (let i = 0; i < valid.length; i++) {
+      const d = valid[i];
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...payloadFromDraft(d), materials: d.materials, assemblies: d.assemblies }),
+      });
+      if (res.ok) created.push(await res.json());
+      else {
+        const j = await res.json().catch(() => ({}));
+        errs.push(`งานที่ ${i + 1} (${d.docNo}): ${typeof j.error === "string" ? j.error : JSON.stringify(j.error)}`);
+      }
+    }
+    setBusyId(null);
+    if (errs.length) alert("บางงานสร้างไม่ได้:\n" + errs.join("\n"));
+    if (created.length) {
+      resetAdd();
+      router.refresh();
+      if (created.length === 1) setPopup({ job: created[0], mode: "created" });
+      else alert(`สร้าง ${created.length} งานสำเร็จ`);
+    }
   }
 
   async function saveEdit() {
@@ -370,16 +387,10 @@ export default function JobTable({
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => { setAdding(!adding); setMultiAdding(false); }}
+                onClick={() => (adding ? resetAdd() : setAdding(true))}
                 className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded whitespace-nowrap"
               >
-                {adding ? "✕ ปิดฟอร์ม" : "+ เพิ่มงานใหม่"}
-              </button>
-              <button
-                onClick={() => { setMultiAdding(!multiAdding); setAdding(false); }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded whitespace-nowrap"
-              >
-                {multiAdding ? "✕ ปิดฟอร์ม" : "+ หลายงาน"}
+                {adding ? "✕ ปิดฟอร์ม" : "+ เพิ่มงาน"}
               </button>
               <UploadExcel />
             </div>
@@ -412,26 +423,37 @@ export default function JobTable({
         </div>
       </div>
 
-      {/* Inline create */}
+      {/* Inline create — 1..N job drafts in one panel ("+ เพิ่มอีกงาน" appends) */}
       {adding && canEdit && (
-        <div className="bg-white p-4 rounded shadow border-2 border-green-400">
-          <div className="font-semibold mb-3 text-sm">+ งานใหม่</div>
-          <DraftFields draft={draft} setDraft={setDraft} users={users} salesUsers={salesUsers} products={products} canSetStatus={!isSupport} canSetEta />
-          <div className="flex gap-2 mt-3 justify-end">
-            <button onClick={() => { setAdding(false); setDraft(emptyDraft()); }}
-              className="px-4 py-1.5 text-sm border rounded">ยกเลิก</button>
-            <button onClick={createJob}
-              disabled={busyId === "__new" || !draft.docNo || !draft.customer || !draft.item}
-              className="px-4 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50">
-              {busyId === "__new" ? "..." : "บันทึก"}
-            </button>
+        <div className="bg-white p-4 rounded shadow border-2 border-green-400 space-y-4">
+          <div className="font-semibold text-sm">
+            + เพิ่มงาน{drafts.length > 1 ? ` (${drafts.length} งาน)` : ""}
+          </div>
+          {drafts.map((d, i) => (
+            <div key={i} className={i > 0 ? "border-t pt-3" : ""}>
+              {drafts.length > 1 && (
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs font-semibold text-gray-500">งานที่ {i + 1}</span>
+                  <button onClick={() => removeDraftRow(i)}
+                    className="text-red-600 text-xs hover:underline">✕ ลบงานนี้</button>
+                </div>
+              )}
+              <DraftFields draft={d} setDraft={(nd) => setDraftAt(i, nd)} users={users}
+                salesUsers={salesUsers} products={products} canSetStatus={!isSupport} canSetEta />
+            </div>
+          ))}
+          <div className="flex gap-2 justify-between items-center pt-2 border-t">
+            <button onClick={addDraftRow}
+              className="text-sm text-indigo-600 hover:underline whitespace-nowrap">+ เพิ่มอีกงาน</button>
+            <div className="flex gap-2">
+              <button onClick={resetAdd} className="px-4 py-1.5 text-sm border rounded">ยกเลิก</button>
+              <button onClick={createAll} disabled={busyId === "__new"}
+                className="px-4 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50">
+                {busyId === "__new" ? "..." : drafts.length > 1 ? `บันทึก ${drafts.length} งาน` : "บันทึก"}
+              </button>
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Multi-order create */}
-      {multiAdding && canEdit && (
-        <MultiJobForm salesUsers={salesUsers} isSupport={isSupport} onClose={() => setMultiAdding(false)} />
       )}
 
       {/* Desktop table */}
@@ -762,8 +784,8 @@ function DraftFields({
           <select className={inp}
             onChange={(e) => {
               const p = products.find((x) => x.id === e.target.value);
-              if (p) setDraft({ ...draft, item: p.code || p.name, materials: p.materials });
-              else setDraft({ ...draft, materials: [] });
+              if (p) setDraft({ ...draft, item: p.code || p.name, materials: p.materials, assemblies: p.assemblies ?? [] });
+              else setDraft({ ...draft, materials: [], assemblies: [] });
             }}>
             <option value="">- ไม่เลือก (กรอกเอง) -</option>
             {products.map((p) => (
@@ -829,9 +851,19 @@ function DraftFields({
           </select>
         </div>
       )}
+      {/* SUPPORT requests a delivery window (label) — PRODUCTION's is auto from the queue. */}
+      {!canSetStatus && (
+        <div>
+          <div className={lbl}>ช่วงเวลาส่ง (ขอ)</div>
+          <select className={inp} value={draft.deliveryTime}
+            onChange={(e) => setDraft({ ...draft, deliveryTime: e.target.value })}>
+            {DELIVERY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      )}
       {showEta && (
         <div>
-          <div className={lbl}>{canSetStatus ? "ETA Manual" : "วันที่ต้องการ (ETA ที่ขอ)"}</div>
+          <div className={lbl}>{canSetStatus ? "ETA Manual" : "วันที่ต้องการ (เจาะจง)"}</div>
           <input type="date" className={inp} value={draft.etaManual}
             onChange={(e) => setDraft({ ...draft, etaManual: e.target.value })} />
         </div>

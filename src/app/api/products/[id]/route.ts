@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions, canFullEdit } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { setProductMaterials } from "@/lib/stock";
+import { setProductMaterials, setProductAssemblies } from "@/lib/stock";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -15,6 +15,9 @@ const updateSchema = z.object({
       qtyPerUnit: z.coerce.number().nonnegative(),
       cutLengthMm: z.coerce.number().nonnegative().optional(),
     }))
+    .optional(),
+  assemblies: z
+    .array(z.object({ name: z.string(), qty: z.coerce.number().int().nonnegative() }))
     .optional(),
 });
 
@@ -56,10 +59,11 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
     },
   });
   if (d.materials !== undefined) await setProductMaterials(ctx.params.id, d.materials);
+  if (d.assemblies !== undefined) await setProductAssemblies(ctx.params.id, d.assemblies);
 
   const fresh = await prisma.product.findUnique({
     where: { id: ctx.params.id },
-    include: { materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } } },
+    include: { materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } }, assemblies: true },
   });
   return NextResponse.json(fresh);
 }

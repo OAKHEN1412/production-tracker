@@ -18,6 +18,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
       createdBy: { select: { name: true } },
       logs: { orderBy: { createdAt: "desc" }, take: 20 },
       materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } },
+      assemblies: true,
     },
   });
   if (!job) notFound();
@@ -42,6 +43,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
       select: {
         id: true, name: true, code: true,
         materials: { select: { materialId: true, qtyPerUnit: true, cutLengthMm: true } },
+        assemblies: { select: { name: true, qty: true } },
       },
     }),
   ]);
@@ -79,6 +81,16 @@ export default async function JobDetailPage({ params }: { params: { id: string }
                       ? `${jm.qtyPerUnit} เส้น × ${jm.cutLengthMm} mm/ตัว`
                       : `${jm.qtyPerUnit} ${jm.material.unit}`}
                   </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {job.assemblies.length > 0 && (
+            <div>
+              <b>ชุดประกอบ (ส่งให้ฝ่ายจัดส่ง):</b>
+              <ul className="list-disc ml-5 mt-1">
+                {job.assemblies.map((a) => (
+                  <li key={a.id}>{a.name} — {a.qty} ชุด/ตัว (รวม {a.qty * job.qty})</li>
                 ))}
               </ul>
             </div>

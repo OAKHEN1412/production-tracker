@@ -30,6 +30,10 @@ export default function StatsSidebar({
             <Row label="🟠 รออนุมัติ" sub={`${overall.waitingApproval.qty} ชิ้น`}
               value={overall.waitingApproval.jobs} cls="text-amber-700" />
           )}
+          {overall.awaitingDelivery.jobs > 0 && (
+            <Row label="🚚 รอจัดส่ง" sub={`${overall.awaitingDelivery.qty} ชิ้น`}
+              value={overall.awaitingDelivery.jobs} cls="text-teal-700" />
+          )}
           <Row label="🔵 กำลังผลิต" sub={`${overall.inProgress.qty} ชิ้น`}
             value={overall.inProgress.jobs} cls="text-blue-700" />
           <Row label="⚪ รอผลิต" sub={`${overall.pending.qty} ชิ้น`}

@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions, canFullEdit } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { setProductMaterials } from "@/lib/stock";
+import { setProductMaterials, setProductAssemblies } from "@/lib/stock";
 import { z } from "zod";
+
+const assembliesSchema = z
+  .array(z.object({ name: z.string(), qty: z.coerce.number().int().nonnegative() }))
+  .optional();
 
 const createSchema = z.object({
   code: z.string().nullable().optional(),
@@ -16,6 +20,7 @@ const createSchema = z.object({
       cutLengthMm: z.coerce.number().nonnegative().optional(),
     }))
     .optional(),
+  assemblies: assembliesSchema,
 });
 
 export async function GET() {
@@ -25,6 +30,7 @@ export async function GET() {
     orderBy: { name: "asc" },
     include: {
       materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } },
+      assemblies: true,
     },
   });
   return NextResponse.json(products);
@@ -57,10 +63,11 @@ export async function POST(req: NextRequest) {
     data: { name, code, notes: d.notes?.trim() || null },
   });
   if (d.materials) await setProductMaterials(product.id, d.materials);
+  if (d.assemblies) await setProductAssemblies(product.id, d.assemblies);
 
   const fresh = await prisma.product.findUnique({
     where: { id: product.id },
-    include: { materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } } },
+    include: { materials: { include: { material: { select: { id: true, name: true, unit: true, code: true } } } }, assemblies: true },
   });
   return NextResponse.json(fresh, { status: 201 });
 }
