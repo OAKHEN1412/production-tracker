@@ -7,7 +7,7 @@ import BomEditor, { type MatRow } from "./BomEditor";
 type User = { id: string; name: string; username: string };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
 type AsmRow = { name: string; qty: number };
-type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[]; cutAllowanceMm?: number };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[] };
 
 // Bake the model's cut allowance into each length-tracked material (cutLengthMm > 0).
 // Count materials (cutLengthMm = 0) are untouched.
@@ -51,6 +51,7 @@ export default function JobForm({
   allMaterials = [],
   products = [],
   initial,
+  cutAllowanceMm = 0,
   canSetStatus = true,
   canSetEta,
 }: {
@@ -58,6 +59,8 @@ export default function JobForm({
   salesUsers?: User[];
   allMaterials?: MaterialOpt[];
   products?: ProductOpt[];
+  // Global master cut allowance — baked into length materials when a model is picked.
+  cutAllowanceMm?: number;
   initial?: Initial;
   // SUPPORT can't set status/worker/BOM (server forces PENDING / null) — hide those.
   canSetStatus?: boolean;
@@ -142,7 +145,7 @@ export default function JobForm({
     // Prefill the produced item with the model name and copy its recipe as the BOM
     // + its assembly list (the shipping parts list).
     setF((prev) => ({ ...prev, item: p.code || p.name }));
-    setMats(withAllowance(p.materials, p.cutAllowanceMm ?? 0));
+    setMats(withAllowance(p.materials, cutAllowanceMm));
     setAsms((p.assemblies ?? []).map((a) => ({ name: a.name, qty: a.qty })));
   }
   const input = "border rounded px-3 py-2 w-full text-sm";

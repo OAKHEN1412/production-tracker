@@ -7,7 +7,7 @@ import AssemblyEditor from "./AssemblyEditor";
 type User = { id: string; name: string; username: string };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
 type AsmRow = { name: string; qty: number };
-type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[]; cutAllowanceMm?: number };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[] };
 
 // Bake the model's cut allowance into length-tracked materials (cutLengthMm > 0).
 function withAllowance(materials: MatRow[], allowanceMm: number): MatRow[] {
@@ -40,11 +40,13 @@ export default function ApprovalsView({
   users,
   allMaterials,
   products,
+  cutAllowanceMm = 0,
 }: {
   jobs: Job[];
   users: User[];
   allMaterials: MaterialOpt[];
   products: ProductOpt[];
+  cutAllowanceMm?: number;
 }) {
   if (jobs.length === 0) {
     return (
@@ -56,7 +58,7 @@ export default function ApprovalsView({
   return (
     <div className="space-y-3">
       {jobs.map((j) => (
-        <RequestCard key={j.id} job={j} users={users} allMaterials={allMaterials} products={products} />
+        <RequestCard key={j.id} job={j} users={users} allMaterials={allMaterials} products={products} cutAllowanceMm={cutAllowanceMm} />
       ))}
     </div>
   );
@@ -67,11 +69,13 @@ function RequestCard({
   users,
   allMaterials,
   products,
+  cutAllowanceMm,
 }: {
   job: Job;
   users: User[];
   allMaterials: MaterialOpt[];
   products: ProductOpt[];
+  cutAllowanceMm: number;
 }) {
   const router = useRouter();
   const [item, setItem] = useState(job.item);
@@ -86,7 +90,7 @@ function RequestCard({
     const p = products.find((x) => x.id === id);
     if (!p) return;
     setItem(p.code || p.name);
-    setMats(withAllowance(p.materials, p.cutAllowanceMm ?? 0));
+    setMats(withAllowance(p.materials, cutAllowanceMm));
     setAsms((p.assemblies ?? []).map((a) => ({ name: a.name, qty: a.qty })));
   }
 

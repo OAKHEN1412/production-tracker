@@ -12,22 +12,20 @@ type Product = {
   code: string | null;
   name: string;
   notes: string | null;
-  cutAllowanceMm: number;
   materials: { id: string; materialId: string; qtyPerUnit: number; cutLengthMm: number; material: MaterialOpt }[];
   assemblies: { id: string; name: string; qty: number }[];
 };
 
-type Draft = { code: string; name: string; notes: string; cutAllowanceMm: number; mats: Recipe[]; asms: AsmRow[] };
+type Draft = { code: string; name: string; notes: string; mats: Recipe[]; asms: AsmRow[] };
 
 function emptyDraft(): Draft {
-  return { code: "", name: "", notes: "", cutAllowanceMm: 0, mats: [], asms: [] };
+  return { code: "", name: "", notes: "", mats: [], asms: [] };
 }
 function toDraft(p: Product): Draft {
   return {
     code: p.code ?? "",
     name: p.name,
     notes: p.notes ?? "",
-    cutAllowanceMm: p.cutAllowanceMm ?? 0,
     mats: p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })),
     asms: (p.assemblies ?? []).map((a) => ({ name: a.name, qty: a.qty })),
   };
@@ -37,7 +35,6 @@ function payload(d: Draft) {
     code: d.code || null,
     name: d.name,
     notes: d.notes || null,
-    cutAllowanceMm: Number(d.cutAllowanceMm) || 0,
     materials: d.mats
       .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
       .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit), cutLengthMm: Number(m.cutLengthMm) || 0 })),
@@ -52,15 +49,34 @@ const inp = "border rounded px-2 py-1.5 text-sm w-full";
 export default function ProductsTable({
   products: initial,
   allMaterials,
+  cutAllowanceMm,
   canEdit,
 }: {
   products: Product[];
   allMaterials: MaterialOpt[];
+  cutAllowanceMm: number;
   canEdit: boolean;
 }) {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>(initial);
   useEffect(() => { setProducts(initial); }, [initial]);
+
+  // Master cut allowance (global — applies to all models, new or old).
+  const [allow, setAllow] = useState<number>(cutAllowanceMm);
+  useEffect(() => { setAllow(cutAllowanceMm); }, [cutAllowanceMm]);
+  const [allowBusy, setAllowBusy] = useState(false);
+  async function saveAllow() {
+    setAllowBusy(true);
+    const res = await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cutAllowanceMm: Number(allow) || 0 }),
+    });
+    setAllowBusy(false);
+    if (!res.ok) { alert("บันทึกไม่ได้"); return; }
+    router.refresh();
+    alert("บันทึกระยะเผื่อตัดแล้ว — ใช้กับทุกรุ่น");
+  }
 
   const [q, setQ] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -135,6 +151,24 @@ export default function ProductsTable({
 
   return (
     <div className="space-y-3">
+      {/* Master cut allowance — one value, applies to every model (new or old) */}
+      <div className="bg-amber-50 border border-amber-200 rounded p-3 flex flex-wrap items-center gap-2">
+        <div className="flex-1 min-w-[12rem]">
+          <div className="text-sm font-semibold text-amber-900">⚙️ ระยะเผื่อตัด (มาสเตอร์)</div>
+          <div className="text-[11px] text-amber-700">บวกเข้าความยาวตัดวัสดุเส้นทุกตัว ทุกรุ่น (ใหม่/เก่า) ตอนสร้างงาน</div>
+        </div>
+        <input type="number" min={0} step="any" disabled={!canEdit}
+          className="border rounded px-2 py-1.5 text-sm w-24 text-center disabled:bg-gray-100"
+          value={allow} onChange={(e) => setAllow(Number(e.target.value))} />
+        <span className="text-sm text-gray-600">mm</span>
+        {canEdit && (
+          <button onClick={saveAllow} disabled={allowBusy}
+            className="px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-700 text-white rounded disabled:opacity-50">
+            {allowBusy ? "..." : "บันทึก"}
+          </button>
+        )}
+      </div>
+
       {/* Toolbar */}
       <div className="bg-white p-3 rounded shadow flex flex-col sm:flex-row gap-2">
         <input
@@ -197,7 +231,6 @@ export default function ProductsTable({
                 <div className="min-w-0">
                   <div className="font-semibold">{p.name}</div>
                   {p.code && <div className="text-xs text-gray-500 font-mono">{p.code}</div>}
-                  {p.cutAllowanceMm > 0 && <div className="text-xs text-amber-700">เผื่อตัด +{p.cutAllowanceMm} mm/เส้น</div>}
                   {p.notes && <div className="text-xs text-gray-400 italic">{p.notes}</div>}
                 </div>
                 {canEdit && (
@@ -274,18 +307,6 @@ function Fields({
         <div>
           <div className={lbl}>หมายเหตุ</div>
           <input className={inp} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} />
-        </div>
-      </div>
-
-      <div className="bg-amber-50 border border-amber-200 rounded p-2">
-        <div className="flex items-center gap-2">
-          <span className={lbl}>ระยะเผื่อตัด (mm)</span>
-          <input type="number" min={0} step="any" className="border rounded px-2 py-1 text-sm w-24"
-            value={draft.cutAllowanceMm || ""} placeholder="0"
-            onChange={(e) => setDraft({ ...draft, cutAllowanceMm: Number(e.target.value) })} />
-        </div>
-        <div className="text-[11px] text-gray-500 mt-1">
-          บวกกับความยาวตัดของวัสดุเส้นทุกตัวเมื่อใช้รุ่นนี้สร้างงาน (เช่น เผื่อใบเลื่อย/ตัดปาด)
         </div>
       </div>
 

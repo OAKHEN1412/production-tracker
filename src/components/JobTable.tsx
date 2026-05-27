@@ -15,7 +15,7 @@ import EtaPopup from "./EtaPopup";
 type User = { id: string; name: string; username: string };
 type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
 type AsmRow = { name: string; qty: number };
-type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[]; cutAllowanceMm?: number };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[] };
 
 type Job = {
   id: string;
@@ -173,6 +173,7 @@ export default function JobTable({
   users,
   salesUsers = [],
   products = [],
+  cutAllowanceMm = 0,
   canEdit,
   role,
   meId,
@@ -181,6 +182,7 @@ export default function JobTable({
   users: User[];
   salesUsers?: User[];
   products?: ProductOpt[];
+  cutAllowanceMm?: number;
   canEdit: boolean;
   role?: "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES" | "SHIPPING";
   meId?: string;
@@ -439,7 +441,7 @@ export default function JobTable({
                 </div>
               )}
               <DraftFields draft={d} setDraft={(nd) => setDraftAt(i, nd)} users={users}
-                salesUsers={salesUsers} products={products} canSetStatus={!isSupport} canSetEta />
+                salesUsers={salesUsers} products={products} cutAllowanceMm={cutAllowanceMm} canSetStatus={!isSupport} canSetEta />
             </div>
           ))}
           <div className="flex gap-2 justify-between items-center pt-2 border-t">
@@ -757,6 +759,7 @@ function DraftFields({
   users,
   salesUsers = [],
   products = [],
+  cutAllowanceMm = 0,
   compact,
   canSetStatus = true,
   canSetEta,
@@ -766,6 +769,7 @@ function DraftFields({
   users: User[];
   salesUsers?: User[];
   products?: ProductOpt[];
+  cutAllowanceMm?: number;
   compact?: boolean;
   // SUPPORT can't set status/worker/BOM (server ignores them) — hide so the controls aren't misleading.
   canSetStatus?: boolean;
@@ -785,11 +789,10 @@ function DraftFields({
             onChange={(e) => {
               const p = products.find((x) => x.id === e.target.value);
               if (p) {
-                const allow = p.cutAllowanceMm ?? 0;
-                // Bake cut allowance into length materials (cutLengthMm > 0).
+                // Bake the master cut allowance into length materials (cutLengthMm > 0).
                 const mats = p.materials.map((m) => {
                   const cut = m.cutLengthMm ?? 0;
-                  return { materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: cut > 0 ? cut + allow : 0 };
+                  return { materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: cut > 0 ? cut + cutAllowanceMm : 0 };
                 });
                 setDraft({ ...draft, item: p.code || p.name, materials: mats, assemblies: p.assemblies ?? [] });
               } else setDraft({ ...draft, materials: [], assemblies: [] });

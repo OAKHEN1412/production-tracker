@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import JobForm from "@/components/JobForm";
 import { STATUS_LABEL, STATUS_COLOR, type Status } from "@/lib/eta";
 import { isLengthTracked } from "@/lib/materials";
+import { getCutAllowanceMm } from "@/lib/settings";
 
 export default async function JobDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -23,7 +24,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
   });
   if (!job) notFound();
 
-  const [users, salesUsers, allMaterials, products] = await Promise.all([
+  const [users, salesUsers, allMaterials, products, cutAllowanceMm] = await Promise.all([
     prisma.user.findMany({
       where: { role: "PRODUCTION" },
       select: { id: true, name: true, username: true },
@@ -41,11 +42,12 @@ export default async function JobDetailPage({ params }: { params: { id: string }
     prisma.product.findMany({
       orderBy: { name: "asc" },
       select: {
-        id: true, name: true, code: true, cutAllowanceMm: true,
+        id: true, name: true, code: true,
         materials: { select: { materialId: true, qtyPerUnit: true, cutLengthMm: true } },
         assemblies: { select: { name: true, qty: true } },
       },
     }),
+    getCutAllowanceMm(),
   ]);
 
   return (
@@ -59,7 +61,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
       <div className="text-xs text-gray-500 -mt-2">ผู้สร้างงาน: {job.createdBy?.name ?? "-"}</div>
 
       {(role === "PRODUCTION" || role === "OWNER") ? (
-        <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} products={products} initial={JSON.parse(JSON.stringify(job))} />
+        <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} products={products} cutAllowanceMm={cutAllowanceMm} initial={JSON.parse(JSON.stringify(job))} />
       ) : (
         <div className="bg-white p-4 rounded shadow text-sm space-y-1">
           <div><b>ลูกค้า:</b> {job.customer}</div>

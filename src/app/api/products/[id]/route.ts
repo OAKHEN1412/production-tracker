@@ -9,7 +9,6 @@ const updateSchema = z.object({
   code: z.string().nullable().optional(),
   name: z.string().optional(),
   notes: z.string().nullable().optional(),
-  cutAllowanceMm: z.coerce.number().nonnegative().optional(),
   materials: z
     .array(z.object({
       materialId: z.string(),
@@ -57,7 +56,6 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       name: name || undefined,
       code,
       notes: d.notes === undefined ? undefined : d.notes?.trim() || null,
-      cutAllowanceMm: d.cutAllowanceMm ?? undefined,
     },
   });
   if (d.materials !== undefined) await setProductMaterials(ctx.params.id, d.materials);

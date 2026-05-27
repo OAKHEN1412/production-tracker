@@ -3,6 +3,7 @@ import { authOptions, canFullEdit } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import ProductsTable from "@/components/ProductsTable";
+import { getCutAllowanceMm } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export default async function ProductsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const [products, allMaterials] = await Promise.all([
+  const [products, allMaterials, cutAllowanceMm] = await Promise.all([
     prisma.product.findMany({
       orderBy: { name: "asc" },
       include: {
@@ -22,6 +23,7 @@ export default async function ProductsPage() {
       select: { id: true, name: true, unit: true, code: true },
       orderBy: [{ category: "asc" }, { name: "asc" }],
     }),
+    getCutAllowanceMm(),
   ]);
 
   const role = (session.user as any).role as string;
@@ -41,6 +43,7 @@ export default async function ProductsPage() {
       <ProductsTable
         products={JSON.parse(JSON.stringify(products))}
         allMaterials={allMaterials}
+        cutAllowanceMm={cutAllowanceMm}
         canEdit={canEdit}
       />
     </div>

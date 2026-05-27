@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import JobTable from "@/components/JobTable";
 import StatsSidebar from "@/components/StatsSidebar";
 import { computeOverall, computeWorkers } from "@/lib/stats";
+import { getCutAllowanceMm } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function HomePage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const [jobs, users, salesUsers, products] = await Promise.all([
+  const [jobs, users, salesUsers, products, cutAllowanceMm] = await Promise.all([
     prisma.job.findMany({
       orderBy: { seq: "asc" },
       include: {
@@ -33,11 +34,12 @@ export default async function HomePage() {
     prisma.product.findMany({
       orderBy: { name: "asc" },
       select: {
-        id: true, name: true, code: true, cutAllowanceMm: true,
+        id: true, name: true, code: true,
         materials: { select: { materialId: true, qtyPerUnit: true, cutLengthMm: true } },
         assemblies: { select: { name: true, qty: true } },
       },
     }),
+    getCutAllowanceMm(),
   ]);
 
   const role = (session.user as any).role as "OWNER" | "PRODUCTION" | "SUPPORT" | "SALES" | "SHIPPING";
@@ -67,6 +69,7 @@ export default async function HomePage() {
             users={users}
             salesUsers={salesUsers}
             products={products}
+            cutAllowanceMm={cutAllowanceMm}
             canEdit={canEdit}
             role={role}
             meId={meId}

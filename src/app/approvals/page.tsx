@@ -3,6 +3,7 @@ import { authOptions, canFullEdit } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import ApprovalsView from "@/components/ApprovalsView";
+import { getCutAllowanceMm } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ export default async function ApprovalsPage() {
   // Only PRODUCTION / OWNER approve SUPPORT requests.
   if (!canFullEdit(role)) redirect("/");
 
-  const [jobs, users, allMaterials, products] = await Promise.all([
+  const [jobs, users, allMaterials, products, cutAllowanceMm] = await Promise.all([
     prisma.job.findMany({
       where: { status: "WAITING_APPROVAL", cancelled: false },
       orderBy: { createdAt: "asc" },
@@ -34,11 +35,12 @@ export default async function ApprovalsPage() {
     prisma.product.findMany({
       orderBy: { name: "asc" },
       select: {
-        id: true, name: true, code: true, cutAllowanceMm: true,
+        id: true, name: true, code: true,
         materials: { select: { materialId: true, qtyPerUnit: true, cutLengthMm: true } },
         assemblies: { select: { name: true, qty: true } },
       },
     }),
+    getCutAllowanceMm(),
   ]);
 
   return (
@@ -54,6 +56,7 @@ export default async function ApprovalsPage() {
         users={users}
         allMaterials={allMaterials}
         products={products}
+        cutAllowanceMm={cutAllowanceMm}
       />
     </div>
   );

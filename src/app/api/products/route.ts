@@ -13,7 +13,6 @@ const createSchema = z.object({
   code: z.string().nullable().optional(),
   name: z.string().min(1),
   notes: z.string().nullable().optional(),
-  cutAllowanceMm: z.coerce.number().nonnegative().optional(),
   materials: z
     .array(z.object({
       materialId: z.string(),
@@ -61,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
 
   const product = await prisma.product.create({
-    data: { name, code, notes: d.notes?.trim() || null, cutAllowanceMm: d.cutAllowanceMm ?? 0 },
+    data: { name, code, notes: d.notes?.trim() || null },
   });
   if (d.materials) await setProductMaterials(product.id, d.materials);
   if (d.assemblies) await setProductAssemblies(product.id, d.assemblies);
