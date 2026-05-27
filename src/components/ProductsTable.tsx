@@ -210,7 +210,7 @@ export default function ProductsTable({
                         <span>{m.material.code ? `[${m.material.code}] ` : ""}{m.material.name}</span>
                         <span className="text-gray-600">
                           {isLengthTracked(m.material.unit) && m.cutLengthMm > 0
-                            ? `ตัด ${m.cutLengthMm} mm/หน่วย`
+                            ? `${m.qtyPerUnit} เส้น × ${m.cutLengthMm} mm/ตัว`
                             : `${m.qtyPerUnit} ${m.material.unit}`}
                         </span>
                       </li>
@@ -255,7 +255,7 @@ function Fields({
       </div>
 
       <BomEditor value={draft.mats} onChange={(mats) => setDraft({ ...draft, mats })}
-        allMaterials={allMaterials} label="วัสดุต่อ 1 กระบอก (วัสดุเส้น = ความยาวตัด/หน่วย mm)" />
+        allMaterials={allMaterials} label="วัสดุต่อ 1 กระบอก (วัสดุเส้น = จำนวนเส้น × ความยาวตัด mm/ตัว)" />
     </div>
   );
 }

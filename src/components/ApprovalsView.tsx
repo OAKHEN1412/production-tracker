@@ -172,7 +172,7 @@ function RequestCard({
       <div className="border-t pt-2">
         <BomEditor value={mats} onChange={setMats} allMaterials={allMaterials}
           label="วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกเมื่ออนุมัติ"
-          hint={`ตัดจริง × ${Number(qty) || 0} ชิ้น · วัสดุเส้น = ความยาวตัด/หน่วย`} />
+          hint={`ตัดจริง × ${Number(qty) || 0} ชิ้น · วัสดุเส้น = จำนวนเส้น × ความยาวตัด/ตัว`} />
       </div>
 
       {err && <div className="text-red-600 text-sm mt-2">{err}</div>}

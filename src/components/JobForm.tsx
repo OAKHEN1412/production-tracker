@@ -220,7 +220,7 @@ export default function JobForm({
         )}
         <BomEditor value={mats} onChange={setMats} allMaterials={allMaterials}
           label="วัสดุที่ใช้ (ต่อ 1 ชิ้น) — ตัดสต๊อกทันทีเมื่อบันทึกงาน"
-          hint={`ตัดจริง = ต่อชิ้น × จำนวนผลิต (${Number(f.qty) || 0} ชิ้น) · วัสดุเส้น = ความยาวตัด/หน่วย`} />
+          hint={`ตัดจริง = ต่อชิ้น × จำนวนผลิต (${Number(f.qty) || 0} ชิ้น) · วัสดุเส้น = จำนวนเส้น × ความยาวตัด/ตัว`} />
       </div>
       )}
 

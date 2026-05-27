@@ -76,7 +76,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
                   <li key={jm.id}>
                     {jm.material.code ? `[${jm.material.code}] ` : ""}{jm.material.name} —{" "}
                     {isLengthTracked(jm.material.unit) && jm.cutLengthMm > 0
-                      ? `ตัด ${jm.cutLengthMm} mm/หน่วย`
+                      ? `${jm.qtyPerUnit} เส้น × ${jm.cutLengthMm} mm/ตัว`
                       : `${jm.qtyPerUnit} ${jm.material.unit}`}
                   </li>
                 ))}

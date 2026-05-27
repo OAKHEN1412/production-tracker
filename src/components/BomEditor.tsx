@@ -57,10 +57,14 @@ export default function BomEditor({
                 </select>
                 {lenTracked ? (
                   <>
-                    <input type="number" min={0} step="any" placeholder="ยาว/หน่วย"
-                      className={numInp + " w-24"} value={m.cutLengthMm || ""}
-                      onChange={(e) => upd(i, { qtyPerUnit: 1, cutLengthMm: Number(e.target.value) })} />
-                    <span className="text-xs text-gray-500 w-12 shrink-0">mm/ตัว</span>
+                    <input type="number" min={1} step="1" placeholder="จำนวน"
+                      className={numInp + " w-16"} value={m.qtyPerUnit || ""}
+                      onChange={(e) => upd(i, { qtyPerUnit: Number(e.target.value) })} />
+                    <span className="text-xs text-gray-500 shrink-0">เส้น ×</span>
+                    <input type="number" min={0} step="any" placeholder="ยาว"
+                      className={numInp + " w-20"} value={m.cutLengthMm || ""}
+                      onChange={(e) => upd(i, { cutLengthMm: Number(e.target.value) })} />
+                    <span className="text-xs text-gray-500 shrink-0">mm/ตัว</span>
                   </>
                 ) : (
                   <>
