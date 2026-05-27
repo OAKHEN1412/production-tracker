@@ -142,10 +142,10 @@ export default function ShippingView({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 font-mono">#{j.seq}</span>
-                      <span className="font-mono text-xs">{j.docNo}</span>
+                      <span className="font-mono text-sm text-gray-800">{j.docNo}</span>
                     </div>
                     <div className="font-semibold text-sm">{j.customer}</div>
-                    <div className="text-xs text-gray-600 font-mono">{j.item} · {j.qty} ชิ้น</div>
+                    <div className="text-sm text-gray-800 font-mono font-medium">{j.item} · {j.qty} ชิ้น</div>
                   </div>
                   <div className="text-xs text-gray-500 text-right">
                     <div>ช่าง: {j.assignedTo?.name ?? "-"}</div>
@@ -221,10 +221,10 @@ export default function ShippingView({
               <div className="p-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500 font-mono">#{s.job?.seq}</span>
-                  <span className="font-mono text-xs">{s.job?.docNo}</span>
+                  <span className="font-mono text-sm text-gray-800">{s.job?.docNo}</span>
                 </div>
                 <div className="font-semibold text-sm">{s.job?.customer}</div>
-                <div className="text-xs text-gray-600 font-mono">{s.job?.item} · {s.job?.qty} ชิ้น</div>
+                <div className="text-sm text-gray-800 font-mono font-medium">{s.job?.item} · {s.job?.qty} ชิ้น</div>
                 {s.note && <div className="text-xs text-gray-500 mt-0.5">{s.note}</div>}
                 <div className="text-xs text-gray-400 mt-1">
                   {s.createdBy?.name ?? "-"} · {fmtDateTime(s.shippedAt)}
