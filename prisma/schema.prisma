@@ -122,6 +122,9 @@ model Product {
   code      String?  @unique
   name      String   @unique
   notes     String?
+  // Cutting allowance (mm) added to every length-tracked material's cut length when
+  // this model is used in a job (kerf / trim margin). 0 = none.
+  cutAllowanceMm Float @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

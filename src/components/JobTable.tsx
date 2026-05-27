@@ -15,7 +15,7 @@ import EtaPopup from "./EtaPopup";
 type User = { id: string; name: string; username: string };
 type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
 type AsmRow = { name: string; qty: number };
-type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[] };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[]; cutAllowanceMm?: number };
 
 type Job = {
   id: string;
@@ -784,8 +784,15 @@ function DraftFields({
           <select className={inp}
             onChange={(e) => {
               const p = products.find((x) => x.id === e.target.value);
-              if (p) setDraft({ ...draft, item: p.code || p.name, materials: p.materials, assemblies: p.assemblies ?? [] });
-              else setDraft({ ...draft, materials: [], assemblies: [] });
+              if (p) {
+                const allow = p.cutAllowanceMm ?? 0;
+                // Bake cut allowance into length materials (cutLengthMm > 0).
+                const mats = p.materials.map((m) => {
+                  const cut = m.cutLengthMm ?? 0;
+                  return { materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: cut > 0 ? cut + allow : 0 };
+                });
+                setDraft({ ...draft, item: p.code || p.name, materials: mats, assemblies: p.assemblies ?? [] });
+              } else setDraft({ ...draft, materials: [], assemblies: [] });
             }}>
             <option value="">- ไม่เลือก (กรอกเอง) -</option>
             {products.map((p) => (

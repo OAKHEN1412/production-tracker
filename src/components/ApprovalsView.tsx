@@ -7,7 +7,15 @@ import AssemblyEditor from "./AssemblyEditor";
 type User = { id: string; name: string; username: string };
 type MaterialOpt = { id: string; name: string; unit: string; code: string | null };
 type AsmRow = { name: string; qty: number };
-type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[] };
+type ProductOpt = { id: string; name: string; code: string | null; materials: MatRow[]; assemblies?: AsmRow[]; cutAllowanceMm?: number };
+
+// Bake the model's cut allowance into length-tracked materials (cutLengthMm > 0).
+function withAllowance(materials: MatRow[], allowanceMm: number): MatRow[] {
+  return materials.map((m) => {
+    const cut = m.cutLengthMm ?? 0;
+    return { materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: cut > 0 ? cut + allowanceMm : 0 };
+  });
+}
 
 type Job = {
   id: string;
@@ -78,7 +86,7 @@ function RequestCard({
     const p = products.find((x) => x.id === id);
     if (!p) return;
     setItem(p.code || p.name);
-    setMats(p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })));
+    setMats(withAllowance(p.materials, p.cutAllowanceMm ?? 0));
     setAsms((p.assemblies ?? []).map((a) => ({ name: a.name, qty: a.qty })));
   }
 

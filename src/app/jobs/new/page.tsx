@@ -28,7 +28,7 @@ export default async function NewJobPage() {
     prisma.product.findMany({
       orderBy: { name: "asc" },
       select: {
-        id: true, name: true, code: true,
+        id: true, name: true, code: true, cutAllowanceMm: true,
         materials: { select: { materialId: true, qtyPerUnit: true, cutLengthMm: true } },
         assemblies: { select: { name: true, qty: true } },
       },

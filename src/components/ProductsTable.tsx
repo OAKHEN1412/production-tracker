@@ -12,20 +12,22 @@ type Product = {
   code: string | null;
   name: string;
   notes: string | null;
+  cutAllowanceMm: number;
   materials: { id: string; materialId: string; qtyPerUnit: number; cutLengthMm: number; material: MaterialOpt }[];
   assemblies: { id: string; name: string; qty: number }[];
 };
 
-type Draft = { code: string; name: string; notes: string; mats: Recipe[]; asms: AsmRow[] };
+type Draft = { code: string; name: string; notes: string; cutAllowanceMm: number; mats: Recipe[]; asms: AsmRow[] };
 
 function emptyDraft(): Draft {
-  return { code: "", name: "", notes: "", mats: [], asms: [] };
+  return { code: "", name: "", notes: "", cutAllowanceMm: 0, mats: [], asms: [] };
 }
 function toDraft(p: Product): Draft {
   return {
     code: p.code ?? "",
     name: p.name,
     notes: p.notes ?? "",
+    cutAllowanceMm: p.cutAllowanceMm ?? 0,
     mats: p.materials.map((m) => ({ materialId: m.materialId, qtyPerUnit: m.qtyPerUnit, cutLengthMm: m.cutLengthMm ?? 0 })),
     asms: (p.assemblies ?? []).map((a) => ({ name: a.name, qty: a.qty })),
   };
@@ -35,6 +37,7 @@ function payload(d: Draft) {
     code: d.code || null,
     name: d.name,
     notes: d.notes || null,
+    cutAllowanceMm: Number(d.cutAllowanceMm) || 0,
     materials: d.mats
       .filter((m) => m.materialId && Number(m.qtyPerUnit) > 0)
       .map((m) => ({ materialId: m.materialId, qtyPerUnit: Number(m.qtyPerUnit), cutLengthMm: Number(m.cutLengthMm) || 0 })),
@@ -194,6 +197,7 @@ export default function ProductsTable({
                 <div className="min-w-0">
                   <div className="font-semibold">{p.name}</div>
                   {p.code && <div className="text-xs text-gray-500 font-mono">{p.code}</div>}
+                  {p.cutAllowanceMm > 0 && <div className="text-xs text-amber-700">เผื่อตัด +{p.cutAllowanceMm} mm/เส้น</div>}
                   {p.notes && <div className="text-xs text-gray-400 italic">{p.notes}</div>}
                 </div>
                 {canEdit && (
@@ -270,6 +274,18 @@ function Fields({
         <div>
           <div className={lbl}>หมายเหตุ</div>
           <input className={inp} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} />
+        </div>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded p-2">
+        <div className="flex items-center gap-2">
+          <span className={lbl}>ระยะเผื่อตัด (mm)</span>
+          <input type="number" min={0} step="any" className="border rounded px-2 py-1 text-sm w-24"
+            value={draft.cutAllowanceMm || ""} placeholder="0"
+            onChange={(e) => setDraft({ ...draft, cutAllowanceMm: Number(e.target.value) })} />
+        </div>
+        <div className="text-[11px] text-gray-500 mt-1">
+          บวกกับความยาวตัดของวัสดุเส้นทุกตัวเมื่อใช้รุ่นนี้สร้างงาน (เช่น เผื่อใบเลื่อย/ตัดปาด)
         </div>
       </div>
 
