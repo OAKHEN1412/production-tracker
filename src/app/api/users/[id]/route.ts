@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { recomputeWorkerQueues } from "@/lib/scheduler";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -93,5 +94,8 @@ export async function DELETE(_req: NextRequest, ctx: { params: { id: string } })
     data: { salesOwnerId: null },
   });
   await prisma.user.delete({ where: { id: target.id } });
+  // Jobs that were assigned to this user are now unassigned — recompute the
+  // (now empty) worker queue + the unassigned bucket so their ETAs aren't stale.
+  await recomputeWorkerQueues([target.id]);
   return NextResponse.json({ ok: true });
 }

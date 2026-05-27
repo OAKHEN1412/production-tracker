@@ -86,7 +86,10 @@ export async function POST(req: NextRequest) {
       item: data.item,
       qty: data.qty,
       notes: data.notes ?? null,
-      etaManual: isSupport ? null : data.etaManual ? new Date(data.etaManual) : null,
+      // SUPPORT can request a target delivery date (etaManual); they still can't set
+      // the worker/BOM/status — PRODUCTION fills those at approval. etaManual survives
+      // approval (the approve PATCH doesn't overwrite it).
+      etaManual: data.etaManual ? new Date(data.etaManual) : null,
       assignedToId: isSupport ? null : data.assignedToId ?? null,
       salesOwnerId: data.salesOwnerId ?? null,
       status: finalStatus,

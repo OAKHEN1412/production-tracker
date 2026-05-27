@@ -72,7 +72,9 @@ export function computeOverall(jobs: JobLike[]): Overall {
         o.qc.jobs++;
         o.qc.qty += j.qty;
         break;
+      // SHIPPED jobs are completed production too — count them with DONE.
       case "DONE":
+      case "SHIPPED":
         if (isThisMonth(j.finishedAt)) {
           o.doneThisMonth.jobs++;
           o.doneThisMonth.qty += j.qty;
@@ -99,7 +101,7 @@ export function computeWorkers(jobs: JobLike[]): WorkerStat[] {
       };
       map.set(id, w);
     }
-    if (j.status === "DONE" && isThisMonth(j.finishedAt)) {
+    if ((j.status === "DONE" || j.status === "SHIPPED") && isThisMonth(j.finishedAt)) {
       w.doneThisMonth.jobs++;
       w.doneThisMonth.qty += j.qty;
     } else if (j.status === "IN_PROGRESS" || j.status === "QC" || j.status === "PAUSED") {

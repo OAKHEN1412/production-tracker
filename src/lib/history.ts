@@ -22,7 +22,7 @@ export type DurationResult = {
   done: boolean;
 };
 
-const TERMINAL = new Set(["DONE", "CANCELLED"]);
+const TERMINAL = new Set(["DONE", "SHIPPED", "CANCELLED"]);
 
 export function computeDurations(logs: LogEntry[], now: number = Date.now()): DurationResult {
   const sorted = [...logs].sort(

@@ -11,6 +11,7 @@ import {
 } from "@/lib/eta";
 import UploadExcel from "./UploadExcel";
 import EtaPopup from "./EtaPopup";
+import MultiJobForm from "./MultiJobForm";
 
 type User = { id: string; name: string; username: string };
 type MatRow = { materialId: string; qtyPerUnit: number; cutLengthMm?: number };
@@ -65,7 +66,7 @@ const SORT_LABEL: Record<SortKey, string> = {
 };
 
 const STATUS_ORDER: Record<Status, number> = {
-  WAITING_APPROVAL: 0, PENDING: 1, IN_PROGRESS: 2, PAUSED: 3, QC: 4, DONE: 5, CANCELLED: 6,
+  WAITING_APPROVAL: 0, PENDING: 1, IN_PROGRESS: 2, PAUSED: 3, QC: 4, DONE: 5, SHIPPED: 6, CANCELLED: 7,
 };
 
 function sortJobs(arr: Job[], key: SortKey, dir: "asc" | "desc"): Job[] {
@@ -201,6 +202,8 @@ export default function JobTable({
   // Inline add
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
+  // Multi-order add (many rows → many jobs)
+  const [multiAdding, setMultiAdding] = useState(false);
 
   // Inline edit
   const [editId, setEditId] = useState<string | null>(null);
@@ -367,10 +370,16 @@ export default function JobTable({
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => setAdding(!adding)}
+                onClick={() => { setAdding(!adding); setMultiAdding(false); }}
                 className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded whitespace-nowrap"
               >
                 {adding ? "✕ ปิดฟอร์ม" : "+ เพิ่มงานใหม่"}
+              </button>
+              <button
+                onClick={() => { setMultiAdding(!multiAdding); setAdding(false); }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded whitespace-nowrap"
+              >
+                {multiAdding ? "✕ ปิดฟอร์ม" : "+ หลายงาน"}
               </button>
               <UploadExcel />
             </div>
@@ -407,7 +416,7 @@ export default function JobTable({
       {adding && canEdit && (
         <div className="bg-white p-4 rounded shadow border-2 border-green-400">
           <div className="font-semibold mb-3 text-sm">+ งานใหม่</div>
-          <DraftFields draft={draft} setDraft={setDraft} users={users} salesUsers={salesUsers} products={products} canSetStatus={!isSupport} />
+          <DraftFields draft={draft} setDraft={setDraft} users={users} salesUsers={salesUsers} products={products} canSetStatus={!isSupport} canSetEta />
           <div className="flex gap-2 mt-3 justify-end">
             <button onClick={() => { setAdding(false); setDraft(emptyDraft()); }}
               className="px-4 py-1.5 text-sm border rounded">ยกเลิก</button>
@@ -418,6 +427,11 @@ export default function JobTable({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Multi-order create */}
+      {multiAdding && canEdit && (
+        <MultiJobForm salesUsers={salesUsers} isSupport={isSupport} onClose={() => setMultiAdding(false)} />
       )}
 
       {/* Desktop table */}
@@ -489,12 +503,12 @@ export default function JobTable({
                         </select>
                       )}
                     </td>
-                    <td>{isSupport ? (
-                      <span className="text-xs text-gray-400">{editDraft!.etaManual || "auto"}</span>
-                    ) : (
+                    <td>
+                      {/* ETA manual is editable by everyone who can edit the row, incl. SUPPORT
+                          (their requested target date). Only the auto estimate is read-only. */}
                       <input type="date" className={input} value={editDraft!.etaManual}
                         onChange={(e) => setEditDraft({ ...editDraft!, etaManual: e.target.value })} />
-                    )}</td>
+                    </td>
                     <td className="text-xs text-gray-400">auto</td>
                     <td className="text-right whitespace-nowrap">
                       <button onClick={saveEdit} disabled={busyId === j.id}
@@ -593,7 +607,7 @@ export default function JobTable({
             return (
               <div key={j.id} className="bg-white rounded shadow p-3 border-2 border-yellow-400 space-y-2">
                 <div className="text-xs text-gray-500 font-mono">#{j.seq} กำลังแก้ไข</div>
-                <DraftFields draft={editDraft!} setDraft={(d) => setEditDraft(d)} users={users} salesUsers={salesUsers} compact canSetStatus={!isSupport} />
+                <DraftFields draft={editDraft!} setDraft={(d) => setEditDraft(d)} users={users} salesUsers={salesUsers} compact canSetStatus={!isSupport} canSetEta />
                 <div className="flex gap-2 pt-2 border-t flex-wrap">
                   <button onClick={cancelEdit}
                     className="text-xs px-3 py-1.5 rounded border">ยกเลิก</button>
@@ -723,6 +737,7 @@ function DraftFields({
   products = [],
   compact,
   canSetStatus = true,
+  canSetEta,
 }: {
   draft: Draft;
   setDraft: (d: Draft) => void;
@@ -730,9 +745,12 @@ function DraftFields({
   salesUsers?: User[];
   products?: ProductOpt[];
   compact?: boolean;
-  // SUPPORT can't set status/ETA (server ignores them) — hide so the controls aren't misleading.
+  // SUPPORT can't set status/worker/BOM (server ignores them) — hide so the controls aren't misleading.
   canSetStatus?: boolean;
+  // ETA is separate: SUPPORT may request a target date. Defaults to canSetStatus.
+  canSetEta?: boolean;
 }) {
+  const showEta = canSetEta ?? canSetStatus;
   const lbl = "text-xs text-gray-600";
   const inp = "border rounded px-2 py-1.5 w-full text-sm";
   const gridCls = compact ? "grid grid-cols-1 gap-2" : "grid grid-cols-1 sm:grid-cols-2 gap-3";
@@ -811,9 +829,9 @@ function DraftFields({
           </select>
         </div>
       )}
-      {canSetStatus && (
+      {showEta && (
         <div>
-          <div className={lbl}>ETA Manual</div>
+          <div className={lbl}>{canSetStatus ? "ETA Manual" : "วันที่ต้องการ (ETA ที่ขอ)"}</div>
           <input type="date" className={inp} value={draft.etaManual}
             onChange={(e) => setDraft({ ...draft, etaManual: e.target.value })} />
         </div>

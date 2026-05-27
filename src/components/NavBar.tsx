@@ -16,6 +16,7 @@ export default function NavBar() {
   const canApprove = role === "OWNER" || role === "PRODUCTION";
   const canCreate = role === "OWNER" || role === "PRODUCTION" || role === "SUPPORT";
   const canWarehouse = role === "OWNER" || role === "PRODUCTION" || role === "SHIPPING";
+  const canShip = role === "OWNER" || role === "PRODUCTION" || role === "SHIPPING";
   const canRecipe = role === "OWNER" || role === "PRODUCTION";
   const seesHistory = role !== "SHIPPING"; // everyone but warehouse-only
 
@@ -35,6 +36,7 @@ export default function NavBar() {
   if (canApprove) links.push({ href: "/approvals", label: "รออนุมัติ", cls: "text-amber-700", badge: pendingApproval });
   if (seesHistory) links.push({ href: "/history", label: "ประวัติการผลิต" });
   if (canWarehouse) links.push({ href: "/warehouse", label: "คลัง" });
+  if (canShip) links.push({ href: "/shipping", label: "จัดส่ง" });
   if (canRecipe) links.push({ href: "/products", label: "รุ่นกระบอก" });
   if (canCreate) links.push({ href: "/jobs/new", label: "+ งานใหม่", cls: "text-blue-600" });
   if (role === "OWNER") links.push({ href: "/admin/users", label: "จัดการผู้ใช้", cls: "text-purple-700" });

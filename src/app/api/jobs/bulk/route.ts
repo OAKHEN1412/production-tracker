@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "rows[] required" }, { status: 400 });
   }
 
+  // SUPPORT bulk-creates requests (WAITING_APPROVAL, no worker) — same rule as the
+  // single create. PRODUCTION/OWNER bulk-create ready jobs.
+  const isSupport = role === "SUPPORT";
+
   const users = await prisma.user.findMany({
     where: { role: "PRODUCTION" },
     select: { id: true, name: true },
@@ -46,9 +50,16 @@ export async function POST(req: NextRequest) {
     try {
       const docNo = String(raw.docNo ?? "").trim() || `AUTO-${ts}-${i + 1}`;
       const qty = Number(raw.qty);
-      const assignedToId = raw.assignedToName
-        ? userByName.get(String(raw.assignedToName).trim().toLowerCase()) ?? null
-        : null;
+      const assignedToId = isSupport
+        ? null
+        : raw.assignedToName
+          ? userByName.get(String(raw.assignedToName).trim().toLowerCase()) ?? null
+          : null;
+      const status = isSupport
+        ? "WAITING_APPROVAL"
+        : raw.checkDone === true
+          ? "DONE"
+          : (raw.status || "PENDING");
 
       const job = await prisma.job.create({
         data: {
@@ -59,9 +70,10 @@ export async function POST(req: NextRequest) {
           customer: String(raw.customer ?? "").trim() || "-",
           item: String(raw.item ?? "").trim() || "-",
           qty: Number.isFinite(qty) && qty > 0 ? Math.floor(qty) : 1,
-          status: raw.checkDone === true ? "DONE" : (raw.status || "PENDING"),
-          finishedAt: raw.checkDone === true ? new Date() : null,
+          status,
+          finishedAt: !isSupport && raw.checkDone === true ? new Date() : null,
           assignedToId,
+          salesOwnerId: raw.salesOwnerId ? String(raw.salesOwnerId) : null,
           etaManual: parseDateOrNull(raw.etaManual),
           createdById: (session.user as any).id,
         },

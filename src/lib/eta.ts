@@ -21,6 +21,7 @@ export const STATUSES = [
   "PAUSED",
   "QC",
   "DONE",
+  "SHIPPED",
   "CANCELLED",
 ] as const;
 export type Status = (typeof STATUSES)[number];
@@ -32,6 +33,7 @@ export const STATUS_LABEL: Record<Status, string> = {
   PAUSED: "หยุดชั่วคราว",
   QC: "ตรวจสอบ QC",
   DONE: "เสร็จสิ้น",
+  SHIPPED: "จัดส่งแล้ว",
   CANCELLED: "ยกเลิก",
 };
 
@@ -56,5 +58,6 @@ export const STATUS_COLOR: Record<Status, string> = {
   PAUSED: "bg-yellow-200 text-yellow-900",
   QC: "bg-purple-200 text-purple-900",
   DONE: "bg-green-200 text-green-900",
+  SHIPPED: "bg-teal-200 text-teal-900",
   CANCELLED: "bg-red-200 text-red-900",
 };

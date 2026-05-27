@@ -37,7 +37,7 @@ export default async function NewJobPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <h1 className="text-xl font-bold mb-4">สร้างงานผลิตใหม่</h1>
-      <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} products={products} canSetStatus={role !== "SUPPORT"} />
+      <JobForm users={users} salesUsers={salesUsers} allMaterials={allMaterials} products={products} canSetStatus={role !== "SUPPORT"} canSetEta />
     </div>
   );
 }

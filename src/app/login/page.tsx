@@ -43,12 +43,14 @@ export default function LoginPage() {
           เข้าระบบ
         </button>
       </form>
-      <div className="text-xs text-gray-500 mt-4">
-        Default seed:<br />
-        owner@autocluster.com / owner1234 (OWNER)<br />
-        production / production123 (PRODUCTION)<br />
-        sales / sales123 (SALES)
-      </div>
+      {process.env.NODE_ENV !== "production" && (
+        <div className="text-xs text-gray-500 mt-4">
+          Default seed (dev only):<br />
+          owner@autocluster.com / owner1234 (OWNER)<br />
+          chang_tee / worker123 (PRODUCTION)<br />
+          sales / sales123 (SALES)
+        </div>
+      )}
     </div>
   );
 }

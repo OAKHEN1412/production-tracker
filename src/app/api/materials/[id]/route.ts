@@ -46,10 +46,12 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
 
   const unit = d.unit?.trim() ?? existing.unit;
   const lengthTracked = isLengthTracked(unit);
+  const wasLengthTracked = isLengthTracked(existing.unit);
 
   // For length-tracked materials, stock moves go through the length breakdown
   // (addPieces / removePiecesAtLength keep Material.qty in sync) — never set an
   // absolute qty here. A stock adjustment must name the length it applies to.
+  let adjustWarning: string | undefined;
   if (lengthTracked && d.adjustDelta !== undefined && d.adjustDelta !== 0) {
     if (!((d.adjustLengthMm ?? 0) > 0)) {
       return NextResponse.json(
@@ -57,8 +59,18 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
         { status: 400 }
       );
     }
-    if (d.adjustDelta > 0) await addPieces(ctx.params.id, d.adjustLengthMm!, d.adjustDelta);
-    else await removePiecesAtLength(ctx.params.id, d.adjustLengthMm!, -d.adjustDelta);
+    if (d.adjustDelta > 0) {
+      await addPieces(ctx.params.id, d.adjustLengthMm!, d.adjustDelta);
+    } else {
+      // removePiecesAtLength clamps to what the named length bucket actually holds.
+      // Surface a warning when fewer pieces were removed than requested, so the UI
+      // doesn't silently report success for a partial/no-op เบิก.
+      const requested = -d.adjustDelta;
+      const removed = await removePiecesAtLength(ctx.params.id, d.adjustLengthMm!, requested);
+      if (removed < requested) {
+        adjustWarning = `เบิกได้ ${removed}/${requested} เส้น ที่ความยาว ${d.adjustLengthMm} mm (สต๊อกความยาวนี้ไม่พอ)`;
+      }
+    }
   }
 
   const mat = await prisma.material.update({
@@ -80,7 +92,28 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       notes: d.notes === undefined ? undefined : d.notes?.trim() || null,
     },
   });
-  return NextResponse.json(mat);
+
+  // Unit crossed the count↔length boundary: rebuild the length breakdown so the
+  // invariant (Material.qty == Σ MaterialLength.qty) holds. Without this, a
+  // count→length switch leaves qty>0 with zero buckets — recipe/approval cuts then
+  // fail (InsufficientStockError) even though stock shows N.
+  if (wasLengthTracked !== lengthTracked) {
+    if (lengthTracked) {
+      // count → length: seed one "unknown length" (lengthMm=0) bucket = current qty.
+      // 0-length pieces aren't cuttable — the user assigns real lengths via 📏 ความยาว.
+      await prisma.$transaction([
+        prisma.materialLength.deleteMany({ where: { materialId: ctx.params.id } }),
+        ...(mat.qty > 0
+          ? [prisma.materialLength.create({ data: { materialId: ctx.params.id, lengthMm: 0, qty: mat.qty } })]
+          : []),
+      ]);
+    } else {
+      // length → count: drop the per-length breakdown (qty already equals Σ buckets).
+      await prisma.materialLength.deleteMany({ where: { materialId: ctx.params.id } });
+    }
+  }
+
+  return NextResponse.json(adjustWarning ? { ...mat, _warning: adjustWarning } : mat);
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: { id: string } }) {

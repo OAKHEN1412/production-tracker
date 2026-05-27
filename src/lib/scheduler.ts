@@ -86,7 +86,7 @@ async function findLatestAssignedEta(): Promise<Date | null> {
   const latest = await prisma.job.findFirst({
     where: {
       cancelled: false,
-      status: { notIn: ["WAITING_APPROVAL", "DONE", "CANCELLED"] },
+      status: { notIn: ["WAITING_APPROVAL", "DONE", "SHIPPED", "CANCELLED"] },
       assignedToId: { not: null },
       etaAuto: { not: null },
     },
@@ -101,6 +101,9 @@ async function findLatestAssignedEta(): Promise<Date | null> {
 export async function recomputeWorkerQueues(workerIds: (string | null | undefined)[]) {
   const distinct = Array.from(new Set(workerIds.filter((x): x is string => !!x)));
   const updates: Record<string, Date> = {};
+  // Job ids already written to DB (in the unassigned-bucket pre-persist below), so
+  // the final persist can skip them instead of updating every assigned job twice.
+  const persisted = new Set<string>();
 
   // First, recompute ASSIGNED queues so latestAssignedEta is up-to-date.
   // (We re-run unassigned after to base on that)
@@ -111,7 +114,7 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
     const where: any = {
       assignedToId: wid,
       cancelled: false,
-      status: { notIn: ["WAITING_APPROVAL", "DONE", "CANCELLED"] },
+      status: { notIn: ["WAITING_APPROVAL", "DONE", "SHIPPED", "CANCELLED"] },
     };
     const queue: QueueJob[] = await prisma.job.findMany({
       where,
@@ -145,6 +148,7 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
             });
           })
         );
+        for (const id of Object.keys(updates)) persisted.add(id);
       }
       const latest = await findLatestAssignedEta();
       const baseline = latest
@@ -173,17 +177,24 @@ export async function recomputeWorkerQueues(workerIds: (string | null | undefine
     }
   }
 
+  // Persist anything not already written in the pre-persist above (assigned jobs
+  // get written there when there's an unassigned bucket; this handles the rest:
+  // unassigned jobs, and assigned jobs when no pre-persist ran).
+  const remaining = Object.entries(updates).filter(([id]) => !persisted.has(id));
+
   // Compute deliveryTime label for each updated job.
   // Use the manual ETA when present (real entered date), otherwise the auto estimate.
-  const jobMeta = await prisma.job.findMany({
-    where: { id: { in: Object.keys(updates) } },
-    select: { id: true, orderDate: true, etaManual: true },
-  });
+  const jobMeta = remaining.length
+    ? await prisma.job.findMany({
+        where: { id: { in: remaining.map(([id]) => id) } },
+        select: { id: true, orderDate: true, etaManual: true },
+      })
+    : [];
   const metaMap = new Map(jobMeta.map((j) => [j.id, j]));
 
   // Persist
   await prisma.$transaction(
-    Object.entries(updates).map(([id, etaAuto]) => {
+    remaining.map(([id, etaAuto]) => {
       const meta = metaMap.get(id);
       const order = meta?.orderDate ?? new Date();
       const effectiveEta = meta?.etaManual ?? etaAuto;

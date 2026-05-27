@@ -42,15 +42,19 @@ export default function JobForm({
   products = [],
   initial,
   canSetStatus = true,
+  canSetEta,
 }: {
   users: User[];
   salesUsers?: User[];
   allMaterials?: MaterialOpt[];
   products?: ProductOpt[];
   initial?: Initial;
-  // SUPPORT can't set status/ETA (server forces PENDING / null) — hide those fields.
+  // SUPPORT can't set status/worker/BOM (server forces PENDING / null) — hide those.
   canSetStatus?: boolean;
+  // ETA is separate: SUPPORT may request a target date. Defaults to canSetStatus.
+  canSetEta?: boolean;
 }) {
+  const showEta = canSetEta ?? canSetStatus;
   const router = useRouter();
   const editing = !!initial?.id;
   const [mats, setMats] = useState<MatRow[]>(initial?.materials ?? []);
@@ -190,9 +194,9 @@ export default function JobForm({
         </div>
       )}
 
-      {canSetStatus && (
+      {showEta && (
         <div className="sm:col-span-2">
-          <div className={label}>ETA Manual (กำหนดเอง)</div>
+          <div className={label}>{canSetStatus ? "ETA Manual (กำหนดเอง)" : "วันที่ต้องการของ (ETA ที่ขอ)"}</div>
           <input type="date" className={input} value={f.etaManual}
             onChange={(e) => setF({ ...f, etaManual: e.target.value })} />
         </div>

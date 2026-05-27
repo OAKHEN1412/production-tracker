@@ -19,6 +19,7 @@ model User {
   jobsAssigned Job[] @relation("AssignedTo")
   jobsAsSales  Job[] @relation("SalesOwner")
   deliveries   Delivery[] @relation("DeliveryBy")
+  shipments    Shipment[] @relation("ShipBy")
 }
 
 model Job {
@@ -34,13 +35,14 @@ model Job {
   notes         String?
 
   status        String   @default("PENDING")
-  // PENDING | IN_PROGRESS | PAUSED | QC | DONE | CANCELLED
+  // WAITING_APPROVAL | PENDING | IN_PROGRESS | PAUSED | QC | DONE | SHIPPED | CANCELLED
 
   rate          Float?
   etaAuto       DateTime?
   etaManual     DateTime?
   startedAt     DateTime?
   finishedAt    DateTime?
+  shippedAt     DateTime?
 
   assignedToId  String?
   assignedTo    User?    @relation("AssignedTo", fields: [assignedToId], references: [id])
@@ -58,6 +60,7 @@ model Job {
 
   logs          JobLog[]
   materials     JobMaterial[]
+  shipment      Shipment?
 }
 
 model Material {
@@ -149,6 +152,22 @@ model JobMaterial {
   cutLengthMm Float   @default(0)
 
   @@unique([jobId, materialId])
+}
+
+// An outbound shipment: SHIPPING confirms a finished job (status DONE) has been
+// sent to the customer, with a photo confirmation. One per job (jobId unique).
+model Shipment {
+  id          String   @id @default(cuid())
+  jobId       String   @unique
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  photo       String   // base64 data URL — confirmation image
+  note        String?
+  shippedAt   DateTime @default(now())
+
+  createdById String
+  createdBy   User     @relation("ShipBy", fields: [createdById], references: [id])
+
+  createdAt   DateTime @default(now())
 }
 
 model JobLog {

@@ -169,6 +169,9 @@ export default function MaterialsTable({
       alert(typeof j.error === "string" ? j.error : "ปรับไม่ได้");
       return;
     }
+    // Server clamps a length เบิก to what the named length actually holds — warn if partial.
+    const j = await res.json().catch(() => ({}));
+    if (j._warning) alert("⚠ " + j._warning);
     await refresh();
   }
 

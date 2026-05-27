@@ -68,7 +68,8 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
 
   // SUPPORT restrictions:
   //  - can only edit jobs they created
-  //  - cannot change: status, cancelled, etaManual, startedAt, finishedAt
+  //  - cannot change: status, cancelled, startedAt, finishedAt
+  //  - CAN set etaManual (their requested target delivery date)
   //  - cannot set the worker or the bill of materials — those belong to PRODUCTION
   //    at approval time (a SUPPORT job stays a request until then).
   if (role === "SUPPORT") {
@@ -79,7 +80,6 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
       ...d,
       status: undefined,
       cancelled: undefined,
-      etaManual: undefined,
       startedAt: undefined,
       finishedAt: undefined,
       assignedToId: undefined,

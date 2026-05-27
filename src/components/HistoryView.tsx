@@ -28,13 +28,17 @@ function fmtDateTime(d?: string | null) {
 // statuses worth showing a duration bar for (skip terminal)
 const TRACKED: Status[] = ["PENDING", "IN_PROGRESS", "PAUSED", "QC"];
 
+// A job counts as finished production once it's DONE — and stays counted after
+// it ships (SHIPPED), so shipped jobs don't vanish from the history/summary.
+const isFinished = (s: string) => s === "DONE" || s === "SHIPPED";
+
 export default function HistoryView({ jobs }: { jobs: Job[] }) {
   const [onlyDone, setOnlyDone] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const arr = jobs
-      .filter((j) => (onlyDone ? j.status === "DONE" : true))
+      .filter((j) => (onlyDone ? isFinished(j.status) : true))
       .map((j) => ({ job: j, dur: computeDurations(j.logs) }));
     // done jobs newest-first (by finishedAt); others by seq desc
     arr.sort((a, b) => {
@@ -47,7 +51,7 @@ export default function HistoryView({ jobs }: { jobs: Job[] }) {
   }, [jobs, onlyDone]);
 
   const summary = useMemo(() => {
-    const done = jobs.filter((j) => j.status === "DONE");
+    const done = jobs.filter((j) => isFinished(j.status));
     const totals = done.map((j) => computeDurations(j.logs).totalMs);
     const avg = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
     return { doneCount: done.length, avgMs: avg };
