@@ -75,6 +75,8 @@ export default function SupportRequestForm({
   }
 
   const inp = "border rounded px-2 py-1.5 text-sm w-full";
+  // Row inputs must NOT carry w-full (it beats the fixed/flex widths → overflow).
+  const inpRow = "border rounded px-2 py-1.5 text-sm";
   const lbl = "text-xs text-gray-600";
 
   return (
@@ -124,9 +126,9 @@ export default function SupportRequestForm({
         <div className="space-y-2">
           {items.map((it, i) => (
             <div key={i} className="flex gap-2 items-center">
-              <input className={inp + " flex-1"} placeholder="รายการผลิต *"
+              <input className={inpRow + " flex-1 min-w-0"} placeholder="รายการผลิต *"
                 value={it.item} onChange={(e) => updItem(i, { item: e.target.value })} />
-              <input type="number" min={1} className={inp + " w-20 text-center shrink-0"}
+              <input type="number" min={1} className={inpRow + " w-16 text-center shrink-0"}
                 value={it.qty} onChange={(e) => updItem(i, { qty: Number(e.target.value) })} />
               <span className="text-xs text-gray-500 shrink-0">ชิ้น</span>
               <button type="button" onClick={() => rmItem(i)} className="text-red-600 text-sm px-2 shrink-0">✕</button>
