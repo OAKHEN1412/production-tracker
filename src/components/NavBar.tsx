@@ -67,9 +67,9 @@ export default function NavBar() {
           {links.map((l) => renderLink(l))}
           {data?.user ? (
             <>
-              <span className="text-sm text-gray-700">
+              <Link href="/profile" className="text-sm text-gray-700 hover:underline" title="โปรไฟล์ของฉัน">
                 {data.user.name} <span className="text-xs text-gray-500">({role})</span>
-              </span>
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="text-sm text-red-600 hover:underline"
@@ -106,9 +106,9 @@ export default function NavBar() {
           ))}
           {data?.user && (
             <div className="border-t pt-2 mt-1 flex items-center justify-between">
-              <span className="text-gray-700">
+              <Link href="/profile" onClick={() => setOpen(false)} className="text-gray-700 hover:underline">
                 {data.user.name} <span className="text-xs text-gray-500">({role})</span>
-              </span>
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="text-red-600"

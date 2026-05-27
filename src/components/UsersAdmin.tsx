@@ -29,6 +29,28 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
   });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  // Inline edit of name + username (login/email) for any user.
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+
+  function beginEdit(u: U) { setEditId(u.id); setEditName(u.name); setEditUsername(u.username); }
+  async function saveEdit(id: string) {
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: editName.trim(), username: editUsername.trim() }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(typeof j.error === "string" ? j.error : "บันทึกไม่ได้");
+      return;
+    }
+    const u = await res.json();
+    setUsers(users.map((x) => (x.id === id ? { ...x, name: u.name, username: u.username } : x)));
+    setEditId(null);
+    router.refresh();
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -135,10 +157,22 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td className="font-mono text-xs">{u.username}</td>
-                <td>{u.name}</td>
+            {users.map((u) => {
+              const isEdit = editId === u.id;
+              return (
+              <tr key={u.id} className={isEdit ? "bg-yellow-50" : ""}>
+                <td className="font-mono text-xs">
+                  {isEdit ? (
+                    <input className={input + " w-full"} value={editUsername}
+                      onChange={(e) => setEditUsername(e.target.value)} />
+                  ) : u.username}
+                </td>
+                <td>
+                  {isEdit ? (
+                    <input className={input + " w-full"} value={editName}
+                      onChange={(e) => setEditName(e.target.value)} />
+                  ) : u.name}
+                </td>
                 <td>
                   <select className={input} value={u.role}
                     onChange={(e) => changeRole(u.id, e.target.value as U["role"])}
@@ -154,18 +188,32 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
                   {new Date(u.createdAt).toLocaleDateString("th-TH")}
                 </td>
                 <td className="text-right whitespace-nowrap">
-                  <button onClick={() => resetPassword(u.id)}
-                    className="text-blue-600 text-xs px-2 py-1 hover:underline">
-                    reset pw
-                  </button>
-                  <button onClick={() => del(u.id)}
-                    disabled={u.id === meId}
-                    className="text-red-600 text-xs px-2 py-1 hover:underline disabled:opacity-30">
-                    ลบ
-                  </button>
+                  {isEdit ? (
+                    <>
+                      <button onClick={() => saveEdit(u.id)}
+                        className="bg-green-600 text-white text-xs px-2 py-1 rounded mr-1">✓ บันทึก</button>
+                      <button onClick={() => setEditId(null)}
+                        className="text-gray-600 text-xs px-2 py-1 hover:underline">ยกเลิก</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => beginEdit(u)}
+                        className="text-blue-600 text-xs px-2 py-1 hover:underline">✎ แก้</button>
+                      <button onClick={() => resetPassword(u.id)}
+                        className="text-blue-600 text-xs px-2 py-1 hover:underline">
+                        reset pw
+                      </button>
+                      <button onClick={() => del(u.id)}
+                        disabled={u.id === meId}
+                        className="text-red-600 text-xs px-2 py-1 hover:underline disabled:opacity-30">
+                        ลบ
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -176,8 +224,19 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
           <div key={u.id} className="bg-white rounded shadow p-3 text-sm">
             <div className="flex justify-between items-start">
               <div className="min-w-0 flex-1">
-                <div className="font-semibold">{u.name}</div>
-                <div className="font-mono text-xs text-gray-600 truncate">{u.username}</div>
+                {editId === u.id ? (
+                  <div className="space-y-1">
+                    <input className={input + " w-full"} value={editName} placeholder="ชื่อ"
+                      onChange={(e) => setEditName(e.target.value)} />
+                    <input className={input + " w-full"} value={editUsername} placeholder="อีเมล/username"
+                      onChange={(e) => setEditUsername(e.target.value)} />
+                  </div>
+                ) : (
+                  <>
+                    <div className="font-semibold">{u.name}</div>
+                    <div className="font-mono text-xs text-gray-600 truncate">{u.username}</div>
+                  </>
+                )}
               </div>
               <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
                 {ROLE_LABEL[u.role]}
@@ -195,7 +254,18 @@ export default function UsersAdmin({ initial, meId }: { initial: U[]; meId: stri
                 <option value="SHIPPING">ฝ่ายจัดส่ง</option>
               </select>
             </div>
-            <div className="flex gap-2 mt-3 pt-2 border-t">
+            <div className="flex gap-2 mt-3 pt-2 border-t flex-wrap">
+              {editId === u.id ? (
+                <>
+                  <button onClick={() => saveEdit(u.id)}
+                    className="text-xs px-3 py-1.5 rounded bg-green-600 text-white">✓ บันทึก</button>
+                  <button onClick={() => setEditId(null)}
+                    className="text-xs px-3 py-1.5 rounded border">ยกเลิก</button>
+                </>
+              ) : (
+                <button onClick={() => beginEdit(u)}
+                  className="text-xs px-3 py-1.5 rounded border border-blue-600 text-blue-600">✎ แก้</button>
+              )}
               <button onClick={() => resetPassword(u.id)}
                 className="text-xs px-3 py-1.5 rounded border border-blue-600 text-blue-600">
                 Reset password

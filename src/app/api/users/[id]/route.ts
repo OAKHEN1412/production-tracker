@@ -8,6 +8,7 @@ import { z } from "zod";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
+  username: z.string().min(3).optional(),
   role: z.enum(["OWNER", "PRODUCTION", "SUPPORT", "SALES", "SHIPPING"]).optional(),
   password: z.string().min(6).optional(),
 });
@@ -41,8 +42,18 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
     }
   }
 
+  // Username change → enforce uniqueness against other users.
+  const username = p.data.username?.trim();
+  if (username) {
+    const dup = await prisma.user.findUnique({ where: { username } });
+    if (dup && dup.id !== ctx.params.id) {
+      return NextResponse.json({ error: `username "${username}" ถูกใช้แล้ว` }, { status: 409 });
+    }
+  }
+
   const data: any = {};
   if (p.data.name !== undefined) data.name = p.data.name;
+  if (username !== undefined) data.username = username;
   if (p.data.role !== undefined) data.role = p.data.role;
   if (p.data.password !== undefined) data.password = await bcrypt.hash(p.data.password, 10);
 

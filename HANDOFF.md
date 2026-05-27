@@ -42,7 +42,7 @@ npm run dev
 
 | Role | สิทธิ์ |
 |---|---|
-| **OWNER** | ทุกอย่าง + จัดการ user ที่ `/admin/users` |
+| **OWNER** | ทุกอย่าง + จัดการ user ที่ `/admin/users` (สร้าง/ลบ + แก้ ชื่อ·อีเมล(username)·role·รหัสผ่าน ของทุกคน) |
 | **PRODUCTION** | สร้าง/แก้/ลบงาน, เปลี่ยน status, override ETA, จัดการวัสดุ, รับเข้าคลัง, recipe รุ่นกระบอก, **อนุมัติคำขอ SUPPORT** (`/approvals`) |
 | **SUPPORT** | สร้าง**คำขอ**งาน (→ status `WAITING_APPROVAL`) + แก้/ลบเฉพาะของตัวเอง. **ไม่ตั้ง** ช่าง/วัสดุ/รุ่น/status/ETA (PRODUCTION กรอกตอน approve). อ่านอย่างเดียวบนวัสดุ/รุ่น |
 | **SHIPPING** | รับเข้าคลัง + จัดการสต๊อกวัสดุ + **ยืนยันมาส่งของ** (`/shipping`: รอจัดส่ง→รอผลิต พร้อมรูป) (ไม่ยุ่งงานผลิต/recipe/user) |
@@ -56,6 +56,8 @@ Helpers ใน `src/lib/auth.ts`:
 - `canShip` = OWNER / PRODUCTION / SHIPPING (ยืนยันส่งออก `/shipping`)
 
 ทุก API route เช็ค role; page ส่ง `canEdit`/`canReceive` ลง component เพื่อซ่อนปุ่ม. SUPPORT ที่เปิดฟอร์มงานจะไม่เห็นช่อง ช่าง/รุ่น/วัสดุ/status/ETA (server ignore อยู่แล้ว — ดู PATCH `jobs/[id]` strip `assignedToId`+`materials` สำหรับ SUPPORT).
+
+**โปรไฟล์ตัวเอง** (`/profile`, ทุก role): แก้ ชื่อ/อีเมล(username)/รหัสผ่าน ของตัวเองได้ (`GET/PATCH /api/profile`, self only). คลิกชื่อบน NavBar เพื่อเข้า. เปลี่ยน username/รหัส → มีผลตอน login ครั้งหน้า (JWT เดิม id-based).
 
 **Nav แสดงตาม role** (`NavBar.tsx`): OWNER เห็นทุกเมนู; PRODUCTION = Dashboard·รออนุมัติ·ประวัติ·คลัง·จัดส่ง·รุ่น·งานใหม่; SUPPORT = Dashboard·ประวัติ·งานใหม่; SHIPPING = Dashboard·คลัง·จัดส่ง; SALES = Dashboard·ประวัติ. ลิงก์ "รออนุมัติ" มี badge นับจาก `/api/jobs/pending-approval`.
 
@@ -189,7 +191,7 @@ prisma/  schema.prisma, seed.ts, cleanup-users.ts
 src/
   app/
     page.tsx                 # dashboard (JobTable + StatsSidebar)
-    login/  history/  products/  warehouse/  shipping/   # pages (force-dynamic)
+    login/  history/  products/  warehouse/  shipping/  profile/   # pages (force-dynamic)
     materials/ deliveries/            # redirect → /warehouse (เก็บ link เก่า)
     approvals/page.tsx       # PRODUCTION/OWNER อนุมัติคำขอ SUPPORT
     admin/users/page.tsx     # OWNER only
@@ -200,12 +202,14 @@ src/
       products/ (route, [id])
       deliveries/ (route, [id]/photo)
       shipments/ (route, [id]/photo)
-      users/ (route, [id])
+      users/ (route, [id])      # OWNER จัดการทุก user (name/username/role/password)
+      profile/route.ts          # self-edit (name/username/password)
+      settings/route.ts         # master settings (cutAllowanceMm) — canFullEdit
       auth/[...nextauth]/route.ts
   components/
     JobTable (เพิ่มงาน 1..N แถวในฟอร์มเดียว), JobForm, EtaPopup, StatsSidebar, UploadExcel,
     MaterialsTable, LengthEditor, UploadMaterialsExcel, ProductsTable,
-    DeliveriesView, ShippingView, HistoryView, UsersAdmin, NavBar, Providers,
+    DeliveriesView, ShippingView, HistoryView, UsersAdmin, ProfileForm, NavBar, Providers,
     ApprovalsView, WarehouseTabs, BomEditor, AssemblyEditor
   lib/
     auth.ts        # NextAuth + role helpers
